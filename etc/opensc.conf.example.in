@@ -99,6 +99,10 @@ app default {
 		# Default: 0 (i.e. not fixed)
 		# fixed_pinlength = 6;
 		#
+		# Enable PACE if detected (PC/SC v2.02.8 Part 10 Amendment 1)
+		# Default: true
+		# enable_pace = false;
+		#
 		# Detect reader capabilities with escape commands (wrapped APDUs with
 		# CLA=0xFF as defined by PC/SC pt. 3 and BSI TR-03119, e.g. for getting
 		# the UID, escaped PIN commands and the reader's firmware version)

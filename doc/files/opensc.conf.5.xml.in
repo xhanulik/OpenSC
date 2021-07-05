@@ -615,6 +615,16 @@ app <replaceable>application</replaceable> {
 					</varlistentry>
 					<varlistentry>
 						<term>
+							<option>enable_pace = <replaceable>bool</replaceable>;</option>
+						</term>
+						<listitem><para>
+								Enable pace if detected (PC/SC
+								v2.02.8 Part 10 Amendment 1, Default:
+								<literal>true</literal>)
+						</para></listitem>
+					</varlistentry>
+					<varlistentry>
+						<term>
 							<option>provider_library = <replaceable>filename</replaceable>;</option>
 						</term>
 						<listitem><para>
