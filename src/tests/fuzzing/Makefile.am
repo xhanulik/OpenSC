@@ -9,7 +9,7 @@ LIBS = $(FUZZING_LIBS)\
 noinst_PROGRAMS = fuzz_asn1_print fuzz_asn1_sig_value fuzz_pkcs15_decode fuzz_pkcs15_reader \
 					fuzz_scconf_parse_string fuzz_pkcs15init
 
-noinst_HEADERS = fuzzer_reader.h
+noinst_HEADERS = fuzzer_reader.h fuzzer_tool.h
 
 ADDITIONAL_SRC =
 if !ENABLE_FUZZING
