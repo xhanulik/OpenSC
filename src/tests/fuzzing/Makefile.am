@@ -8,8 +8,13 @@ LIBS = $(FUZZING_LIBS)\
 
 noinst_PROGRAMS = fuzz_asn1_print fuzz_asn1_sig_value fuzz_pkcs15_decode fuzz_pkcs15_reader \
 					fuzz_scconf_parse_string fuzz_pkcs15init
+if ENABLE_OPENSSL
+noinst_PROGRAMS += fuzz_piv
+endif
 
-noinst_HEADERS = fuzzer_reader.h fuzzer_tool.h
+noinst_HEADERS = fuzzer_reader.h fuzzer_tool.h \
+				  piv_fuzz.h
+BUILT_SOURCES = piv_fuzz.h
 
 ADDITIONAL_SRC =
 if !ENABLE_FUZZING
@@ -24,3 +29,11 @@ fuzz_scconf_parse_string_SOURCES = fuzz_scconf_parse_string.c $(ADDITIONAL_SRC)
 fuzz_pkcs15init_SOURCES = fuzz_pkcs15init.c fuzzer_reader.c $(ADDITIONAL_SRC)
 fuzz_pkcs15init_LDADD = $(OPTIONAL_OPENSSL_LIBS) $(OPENPACE_LIBS)
 fuzz_pkcs15init_LDFLAGS = -static
+
+fuzz_piv_SOURCES = fuzz_piv.c fuzzer_reader.c fuzzer_tool.c $(ADDITIONAL_SRC)
+fuzz_piv_LDADD = $(OPTIONAL_OPENSSL_LIBS) $(OPENPACE_LIBS)
+
+%_fuzz.h: $(srcdir)/../../tools/%-tool.c
+	$(AM_V_GEN) ./helper.sh $@
+
+CLEANFILES = piv_fuzz.h
