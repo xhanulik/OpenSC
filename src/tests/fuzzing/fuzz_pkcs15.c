@@ -1,0 +1,108 @@
+/*
+ * fuzz_pkcs15_init.c: Fuzzer for pkcs15-init
+ *
+ * Copyright (C) 2022 Red Hat, Inc.
+ *
+ * Author: Veronika Hanulikova <vhanulik@redhat.com>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Lesser General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#if HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#include "libopensc/internal.h"
+#include <stdlib.h>
+#include <string.h>
+#include <stdbool.h>
+#include "fuzzer_reader.h"
+#include "fuzzer_tool.h"
+
+/* Needs header file with tool source code to test main() */
+#include "pkcs15_fuzz.h"
+
+static const uint8_t *reader_data = NULL;
+static size_t reader_data_size = 0;
+
+
+/* Use instead of util_connect_card() */
+int fuzz_util_connect_card(sc_context_t *ctx, sc_card_t **card)
+{
+	struct sc_reader *reader = NULL;
+
+	/* Erase possible readers from ctx */
+	while (list_size(&ctx->readers)) {
+		sc_reader_t *rdr = (sc_reader_t *) list_get_at(&ctx->readers, 0);
+		_sc_delete_reader(ctx, rdr);
+	}
+	if (ctx->reader_driver->ops->finish != NULL)
+		ctx->reader_driver->ops->finish(ctx);
+
+	/* Create virtual reader */
+	ctx->reader_driver = sc_get_fuzz_driver();
+	fuzz_add_reader(ctx, reader_data, reader_data_size);
+	reader = sc_ctx_get_reader(ctx, 0);
+
+	/* Connect card APDU reader */
+	if (sc_connect_card(reader, card))
+		return SC_ERROR_INTERNAL;
+	
+	return SC_SUCCESS;
+}
+
+void initialize_global()
+{
+	ctx = NULL;
+	card = NULL;
+	p15card = NULL;
+
+	/* GLobal variables need to be initialized
+	   since libFuzzer runs more test in one thread. */
+	opt_auth_id = NULL;
+	opt_reader = NULL;
+	opt_cert = NULL;
+	opt_data = NULL;
+	opt_pubkey = NULL;
+	opt_outfile = NULL;
+	opt_bind_to_aid = NULL;
+	opt_newpin = NULL;
+	opt_pin = NULL;
+	opt_puk = NULL;
+
+	optind = 0; /* reset getopt*/
+	opterr = 0; /* do not print out error messages */
+	optopt = 0;
+}
+
+int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
+{
+	char **argv = NULL;
+	int argc = 0;
+
+	if (size < 10)
+		return 0;
+
+#ifdef FUZZING_ENABLED
+	fclose(stdout);
+#endif
+	initialize_global();
+
+	if (get_random_argv("./fuzz_pkcs15", data, size, &argv, &argc, &reader_data, &reader_data_size) != 0)
+		return 0;
+	_main(argc, argv);
+	free_arguments(argc, argv);
+
+	return 0;
+}
