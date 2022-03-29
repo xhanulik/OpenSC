@@ -16,10 +16,16 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifndef FUZZER_READER_H
+#define FUZZER_READER_H
+
 #include "libopensc/internal.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 void fuzz_get_chunk(sc_reader_t *reader, const uint8_t **chunk, uint16_t *chunk_size);
 struct sc_reader_driver *sc_get_fuzz_driver(void);
 void fuzz_add_reader(struct sc_context *ctx, const uint8_t *Data, size_t Size);
+
+#endif /* FUZZER_TOOL_H */
