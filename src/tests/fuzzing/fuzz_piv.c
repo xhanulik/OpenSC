@@ -150,7 +150,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 			test_load("-Z", data, size);
 			break;
 		default:
-			if (get_random_argv("./fuzz_piv", data, size, &argv, &argc, &reader_data, &reader_data_size) != 0)
+			if (get_fuzzed_argv("./fuzz_piv", data, size, &argv, &argc, &reader_data, &reader_data_size) != 0)
 				goto err;
 			_main(argc, argv);
 			free_arguments(argc, argv);
