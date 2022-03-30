@@ -99,7 +99,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 #endif
 	initialize_global();
 
-	if (get_random_argv("./fuzz_pkcs15", data, size, &argv, &argc, &reader_data, &reader_data_size) != 0)
+	if (get_fuzzed_argv("./fuzz_pkcs15", data, size, &argv, &argc, &reader_data, &reader_data_size) != 0)
 		return 0;
 	_main(argc, argv);
 	free_arguments(argc, argv);
