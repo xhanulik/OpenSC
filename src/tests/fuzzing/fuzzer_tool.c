@@ -54,7 +54,7 @@ char *extract_word(const uint8_t **data, size_t *size)
 	return result;
 }
 
-int get_random_argv(const char *app_name, const uint8_t *data, size_t size,
+int get_fuzzed_argv(const char *app_name, const uint8_t *data, size_t size,
                     char ***argv_out, int *argc_out, const uint8_t **reader_data, size_t *reader_data_size)
 {
 	const uint8_t *ptr = data, *help_ptr = data;

@@ -13,7 +13,7 @@
 
 const uint8_t *get_word(const uint8_t *, size_t);
 char *extract_word(const uint8_t **, size_t *);
-int get_random_argv(const char *, const uint8_t *, size_t ,
+int get_fuzzed_argv(const char *, const uint8_t *, size_t ,
                     char***, int *, const uint8_t **, size_t *);
 int create_input_file(char **, const uint8_t **, size_t *);
 void remove_file(char *);
