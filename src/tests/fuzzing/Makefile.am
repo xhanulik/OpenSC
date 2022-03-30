@@ -37,7 +37,7 @@ fuzz_piv_LDADD = $(OPTIONAL_OPENSSL_LIBS) $(OPENPACE_LIBS)
 fuzz_pkcs15_SOURCES = fuzz_pkcs15.c fuzzer_reader.c fuzzer_tool.c $(ADDITIONAL_SRC) ../../pkcs11/pkcs11-display.c ../../pkcs11/pkcs11-display.h
 fuzz_pkcs15_LDADD = $(OPTIONAL_OPENSSL_LIBS) $(OPENPACE_LIBS)
 
-%_fuzz.h: $(srcdir)/../../tools/%-tool.c
+%_fuzz.h: $(srcdir)/../../tools/%-tool.c helper.sh
 	$(AM_V_GEN) ./helper.sh $@
 
 CLEANFILES = piv_fuzz.h pkcs15_fuzz.h
