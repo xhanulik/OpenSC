@@ -22,7 +22,7 @@ FUZZING_LIBS=-fuzzer,address,undefined
 Sanitizers can also be modified by [flags](https://github.com/google/sanitizers/wiki/SanitizerCommonFlags).
 
 ### Building without fuzzing support
-When fuzzing is not enabled explicitly by `--enable-fuzzing`, fuzz targets are built without fuzzing support. They can be used for local testing and accept one argument for filename with input for the testing functions.
+When fuzzing is not enabled explicitly by `--enable-fuzzing`, fuzz targets are built without fuzzing support. They can be used for local regression testing and accept one argument for filename with input for the testing functions.
 
 Example of testing without fuzzing:
 ```
