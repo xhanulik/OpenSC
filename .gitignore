@@ -128,4 +128,6 @@ src/tests/unittests/pkcs15filter
 src/tests/unittests/simpletlv
 src/tests/unittests/sm
 
+src/tests/fuzzing/*_fuzz.h
+
 version.m4.ci
