@@ -16,6 +16,9 @@ case $HEADER_FILE in
     pkcs15_fuzz.h)
         SOURCE_FILE="pkcs15-tool.c"
     ;;
+    pkcs11_fuzz.h)
+        SOURCE_FILE="pkcs11-tool.c"
+    ;;
 esac
 
 SOURCE_PATH="../../tools/${SOURCE_FILE}"
