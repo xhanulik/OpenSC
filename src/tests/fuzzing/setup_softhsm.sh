@@ -1,4 +1,3 @@
-# initialize card
 echo "directories.tokendir = .tokens/" > .softhsm2.conf
 mkdir ".tokens"
 export SOFTHSM2_CONF=".softhsm2.conf"
