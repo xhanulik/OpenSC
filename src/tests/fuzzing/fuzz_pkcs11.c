@@ -33,9 +33,25 @@
 /* Needs header file with tool source code to test main() */
 #include "pkcs11_fuzz.h"
 
+static char* path = NULL;
+#define NAME_LEN 11
+
+int LLVMFuzzerInitialize(int* argc, char*** argv) {
+  path = (*argv)[0];
+  return 0;
+}
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
-    char *argv[] = {"./fuzz_pkcs11", "-I", "--module", "/out/libsofthsm2.so"};
+    char *argv[] = {"./fuzz_pkcs11", "-I", "--module", NULL, NULL};
+    size_t len = strlen(path);
+    char *new_path = malloc(len - NAME_LEN + 14 + 1);
+    memcpy(new_path, path, len - NAME_LEN);
+    memcpy(new_path + (len - NAME_LEN), "libsofthsm2.so\0", 15);
+    printf("%s\n", new_path);
+    argv[3] = new_path;
+
+    optind = 0;
 	_main(4, argv);
 	return 0;
 }
