@@ -39,3 +39,36 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 	_main(4, argv);
 	return 0;
 }
+/*
+./bootstrap
+# FIXME FUZZING_LIBS="$LIB_FUZZING_ENGINE" fails with some missing C++ library, I don't know how to fix this
+./configure --disable-optimization --disable-shared --disable-pcsc --enable-ctapi --enable-fuzzing FUZZING_LIBS="$LIB_FUZZING_ENGINE"
+make -j4
+
+fuzzerFiles=$(find $SRC/opensc/src/tests/fuzzing/ -name "fuzz_*.c")
+
+for F in $fuzzerFiles; do
+    fuzzerName=$(basename $F .c)
+    cp "$SRC/opensc/src/tests/fuzzing/$fuzzerName" $OUT
+    if [ -d "$SRC/opensc/src/tests/fuzzing/corpus/${fuzzerName}" ]; then
+        zip -j $OUT/${fuzzerName}_seed_corpus.zip $SRC/opensc/src/tests/fuzzing/corpus/${fuzzerName}/*
+    fi
+done
+
+git clone https://github.com/opendnssec/SoftHSMv2.git
+mkdir "$SRC/opensc/SoftHSMv2/built"
+cd "$SRC/opensc/SoftHSMv2"
+ls
+./autogen.sh
+./configure --prefix="$SRC/opensc/SoftHSMv2/built"
+make install
+cp "$SRC/opensc/SoftHSMv2/built/lib/softhsm/libsofthsm2.so" "$SRC/opensc/src/tests/fuzzing/libsofthsm2.so"
+cd "$SRC/opensc/src/tests/fuzzing"
+./setup_softhsm.sh "$SRC/opensc/SoftHSMv2/built/bin/softhsm2-util"
+
+cp "$SRC/opensc/src/tests/fuzzing/libsofthsm2.so" $OUT
+cp "$SRC/opensc/src/tests/fuzzing/.softhsm2.conf" $OUT
+cp -r "$SRC/opensc/src/tests/fuzzing/.tokens" $OUT
+export SOFTHSM2_CONF=".softhsm2.conf"
+
+*/
