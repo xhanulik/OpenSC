@@ -507,8 +507,14 @@ int sc_lock(sc_card_t *card)
 	}
 
 	/* give card driver a chance to do something when reader lock first obtained */
-	if (r == 0 && reader_lock_obtained == 1  && card->ops->card_reader_lock_obtained)
+	if (r == 0 && reader_lock_obtained == 1  && card->ops->card_reader_lock_obtained) {
 		r = card->ops->card_reader_lock_obtained(card, was_reset);
+		if (r != 0) {
+			if (card->reader->ops->unlock != NULL)
+				r = card->reader->ops->unlock(card->reader);
+			card->lock_count--;
+		}
+	}
 
 	LOG_FUNC_RETURN(card->ctx, r);
 }
