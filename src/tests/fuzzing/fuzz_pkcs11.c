@@ -38,6 +38,7 @@ static char* path = NULL;
 
 int LLVMFuzzerInitialize(int* argc, char*** argv) {
   path = (*argv)[0];
+  putenv("SOFTHSM2_CONF=.softhsm2.conf");
   return 0;
 }
 
@@ -45,11 +46,11 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
     char *argv[] = {"./fuzz_pkcs11", "-I", "--module", NULL, NULL};
     size_t len = strlen(path);
-    char *new_path = malloc(len - NAME_LEN + 14 + 1);
-    memcpy(new_path, path, len - NAME_LEN);
-    memcpy(new_path + (len - NAME_LEN), "libsofthsm2.so\0", 15);
-    printf("%s\n", new_path);
-    argv[3] = new_path;
+    char *softhsm_path = malloc(len - NAME_LEN + 14 + 1);
+
+    memcpy(softhsm_path, path, len - NAME_LEN);
+    memcpy(softhsm_path + (len - NAME_LEN), "libsofthsm2.so\0", 15);
+    argv[3] = softhsm_path;
 
     optind = 0;
 	_main(4, argv);
