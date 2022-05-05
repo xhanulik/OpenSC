@@ -1,6 +1,5 @@
 AM_CPPFLAGS = -I$(top_srcdir)/src -D'SC_PKCS15_PROFILE_DIRECTORY="$(pkgdatadir)"' -D'DEFAULT_PKCS11_PROVIDER="$(DEFAULT_PKCS11_PROVIDER)"'
 AM_CFLAGS = -g -O0 $(OPTIONAL_OPENSSL_CFLAGS) $(OPTIONAL_READLINE_CFLAGS) $(PTHREAD_CFLAGS)
-AM_LDAFLGS = -lstdc++
 LIBS = $(FUZZING_LIBS)\
 	$(top_builddir)/src/libopensc/libopensc.la \
 	$(top_builddir)/src/common/libscdl.la \
@@ -9,7 +8,7 @@ LIBS = $(FUZZING_LIBS)\
 
 noinst_PROGRAMS = fuzz_asn1_print fuzz_asn1_sig_value fuzz_pkcs15_decode fuzz_pkcs15_reader \
 					fuzz_scconf_parse_string fuzz_pkcs15_encode fuzz_card \
-					fuzz_pkcs15_tool fuzz_pkcs15_crypt 
+					fuzz_pkcs15_tool fuzz_pkcs15_crypt fuzz_pkcs11_tool
 
 if ENABLE_STATIC
 noinst_PROGRAMS += fuzz_pkcs15init
@@ -47,7 +46,9 @@ fuzz_pkcs15_crypt_SOURCES = fuzz_pkcs15_crypt.c fuzzer_reader.c fuzzer_tool.c $(
 fuzz_pkcs15_crypt_LDADD = $(OPTIONAL_OPENSSL_LIBS)
 
 fuzz_pkcs11_tool_SOURCES = fuzz_pkcs11_tool.c fuzzer_reader.c $(ADDITIONAL_SRC) ../../tools/util.c
+fuzz_pkcs11_tool_CFLAGS = $(PTHREAD_CFLAGS)
 fuzz_pkcs11_tool_LDADD = \
 	$(top_builddir)/src/common/libpkcs11.la \
-	$(OPTIONAL_OPENSSL_LIBS) $(PTHREAD_CFLAGS) \
-	$(top_builddir)/SoftHSMv2/lib/softhsm/libsofthsm2.la -lstdc++
+	$(OPTIONAL_OPENSSL_LIBS) $(PTHREAD_LIBS) \
+	$(top_builddir)/SoftHSMv2/src/lib/.libs/libsofthsm2.la -lstdc++ -lc++
+fuzz_pkcs11_tool_LDFLAGS = -static
