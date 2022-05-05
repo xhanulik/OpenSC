@@ -45,10 +45,10 @@ fuzz_pkcs15_crypt_SOURCES = fuzz_pkcs15_crypt.c fuzzer_reader.c fuzzer_tool.c $(
 							../../tools/util.c
 fuzz_pkcs15_crypt_LDADD = $(OPTIONAL_OPENSSL_LIBS)
 
-fuzz_pkcs11_tool_SOURCES = fuzz_pkcs11_tool.c fuzzer_reader.c $(ADDITIONAL_SRC) ../../tools/util.c
+fuzz_pkcs11_tool_SOURCES = fuzz_pkcs11_tool.c fuzzer_reader.c fuzzer_tool.c $(ADDITIONAL_SRC) ../../tools/util.c
 fuzz_pkcs11_tool_CFLAGS = $(PTHREAD_CFLAGS)
 fuzz_pkcs11_tool_LDADD = \
 	$(top_builddir)/src/common/libpkcs11.la \
 	$(OPTIONAL_OPENSSL_LIBS) $(PTHREAD_LIBS) \
-	$(top_builddir)/SoftHSMv2/src/lib/.libs/libsofthsm2.la -lstdc++ -lc++
+	$(top_builddir)/SoftHSMv2/src/lib/.libs/libsofthsm2.la -lc++
 fuzz_pkcs11_tool_LDFLAGS = -static

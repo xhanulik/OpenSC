@@ -28,6 +28,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include "fuzzer_reader.h"
+#include "fuzzer_tool.h"
 #include "pkcs11/pkcs11.h"
 #include "pkcs11/pkcs11-opensc.h"
 
@@ -55,9 +56,37 @@ int LLVMFuzzerInitialize(int* argc, char*** argv)
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
-	char *argv[] = {"./fuzz_pkcs11", "--generate-random", "128", NULL};
+	char **argv = NULL;
+	const uint8_t *ptr = data, *help_ptr = data;
+	size_t ptr_size = size;
+	int argc = 1;
 	opt_module = "";
+	optind = 0;
 
-	_main(3, argv);
+	/* Count arguments until double zero bytes occurs*/
+	while(*ptr) {
+		ptr = get_word(help_ptr, ptr_size);
+		if (!ptr)
+			return -1;
+		argc++;
+		ptr_size -= (ptr - help_ptr);
+		help_ptr = ptr;
+	}
+
+	argv = malloc((argc + 1) * sizeof(char*));
+	if (!argv)
+		return -1;
+
+	/* Copy arguments into argv */
+	ptr = data;
+	ptr_size = size;
+	argv[0] = strdup(app_name);
+	for (int i = 1; i < argc; i++) {
+		argv[i] = extract_word(&ptr, &ptr_size);
+	}
+	argv[argc] = NULL;
+
+	_main(argc, argv);
+	free_arguments(argc, argv);
 	return 0;
 }
