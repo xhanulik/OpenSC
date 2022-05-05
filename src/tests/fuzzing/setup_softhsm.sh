@@ -1,5 +1,5 @@
 echo "directories.tokendir = .tokens/" > .softhsm2.conf
-if [ -d ".tokens" ]; then
+if [ ! -d ".tokens" ]; then
        mkdir ".tokens"
 fi
 export SOFTHSM2_CONF=".softhsm2.conf"
