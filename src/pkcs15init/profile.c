@@ -1868,6 +1868,25 @@ find_macro(sc_profile_t *profile, const char *name)
 	return NULL;
 }
 
+int
+check_cyclic_dependency(sc_profile_t *profile, const char *name)
+{
+	sc_macro_t *mac;
+	const char *_name = name;
+
+	for (sc_macro_t *m = profile->macro_list; m; m = m->next) {
+		for (mac = profile->macro_list; mac; mac = mac->next) {
+			if (mac->value->data[0] == '$' && !strcmp(mac->value->data + 1, _name)) {
+				_name = mac->name;
+				break;
+			}
+		}
+		if (!strcmp(name, _name))
+			return 1;
+	}
+	return 0;
+}
+
 /*
  * Key section
  */
@@ -2002,7 +2021,9 @@ build_argv(struct state *cur, const char *cmdname,
 			return SC_ERROR_SYNTAX_ERROR;
 		}
 
-		if (list == mac->value) {
+		if (list == mac->value ||
+		    (mac->value->data[0] == '$' &&
+		     check_cyclic_dependency(cur->profile, mac->value->data + 1))) {
 			return SC_ERROR_SYNTAX_ERROR;
 		}
 #ifdef DEBUG_PROFILE
