@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM ubuntu:22.04
 RUN apt update
 # Install sudo to mimic Github Actions runnner
 # Install tzdata to avoid messing up with interactive prompts later
@@ -8,5 +8,5 @@ RUN export DEBIAN_FRONTEND=noninteractive; \
     echo 'tzdata tzdata/Zones/Etc select UTC' | debconf-set-selections; \
     apt-get install -y --no-install-recommends tzdata sudo
 WORKDIR /src
-RUN /src/.github/setup-linux.sh ossl3
-CMD /src/.github/build.sh dist ossl3
+RUN /src/.github/setup-linux.sh
+CMD /src/.github/build.sh dist
