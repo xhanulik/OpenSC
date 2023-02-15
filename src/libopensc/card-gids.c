@@ -1064,28 +1064,15 @@ static int gids_read_binary(sc_card_t *card, unsigned int offset,
 		u8 buffer[SC_MAX_EXT_APDU_BUFFER_SIZE];
 		size_t buffersize = sizeof(buffer);
 		r = gids_get_DO(card, data->currentEFID, data->currentDO, buffer, &(buffersize));
-		if (r <0) return r;
+		if (r < 0) return r;
 		if (buffersize < 4) {
 			LOG_FUNC_RETURN(card->ctx, SC_ERROR_INVALID_DATA);
 		}
-		if (buffer[0] == 1 && buffer[1] == 0) {
-			size_t expectedsize = buffer[2] + buffer[3] * 0x100;
-			data->buffersize = sizeof(data->buffer);
-			r = sc_decompress(data->buffer, &(data->buffersize), buffer+4, buffersize-4, COMPRESSION_ZLIB);
-			if (r != SC_SUCCESS) {
-				sc_log(card->ctx,  "Zlib error: %d", r);
-				LOG_FUNC_RETURN(card->ctx, r);
-			}
-			if (data->buffersize != expectedsize) {
-				sc_log(card->ctx, 
-					 "expected size: %"SC_FORMAT_LEN_SIZE_T"u real size: %"SC_FORMAT_LEN_SIZE_T"u",
-					 expectedsize, data->buffersize);
-				LOG_FUNC_RETURN(card->ctx, SC_ERROR_INVALID_DATA);
-			}
-		} else {
-			sc_log(card->ctx,  "unknown compression method %d", buffer[0] + (buffer[1] <<8));
-			LOG_FUNC_RETURN(card->ctx, SC_ERROR_INVALID_DATA);
-		}
+		data->buffer = malloc(buffersize);
+		if (!data->buffer)
+			return SC_ERROR_OUT_OF_MEMORY;
+		memcpy(data->buffer, buffer, buffersize);
+		data->buffersize = sizeof(data->buffer);
 		data->state = GIDS_STATE_READ_DATA_PRESENT;
 	}
 	if (offset >= data->buffersize) {
