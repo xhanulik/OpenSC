@@ -85,6 +85,30 @@ static const char * cac_get_name(int type)
     return ("CAC");
 }
 
+static int cac_get_compressed(sc_pkcs15_card_t *p15card, struct sc_path *cert_path)
+{
+	struct sc_path certinfo_path = {0};
+	int r = 0, compressed = 0;
+	u8 *buf = NULL;
+	size_t buflen = 0;
+
+	if (!p15card || !cert_path) {
+		return -1;
+	}
+
+	memcpy(&certinfo_path, cert_path, sizeof(sc_path_t));
+	sc_append_path_id(&certinfo_path, (const u8 *)"\xec\xec", 2);
+	r = sc_pkcs15_read_file(p15card, &certinfo_path, &buf, &buflen, 0, 0, 0);
+	if (r) {
+		free(buf);
+		return -1;
+	}
+
+	compressed = *buf & 0x3;
+	free(buf);
+	return compressed;
+}
+
 static int sc_pkcs15emu_cac_init(sc_pkcs15_card_t *p15card)
 {
 	static const pindata pins[] = {
@@ -252,6 +276,11 @@ static int sc_pkcs15emu_cac_init(sc_pkcs15_card_t *p15card)
 		prkey_obj.flags = SC_PKCS15_CO_FLAG_PRIVATE;
 		sc_pkcs15_format_id(pins[0].id, &prkey_obj.auth_id);
 
+		cert_info.compressed = cac_get_compressed(p15card, &cert_info.path);
+		if (cert_info.compressed < 0) {
+			sc_log(card->ctx,  "Certinfo cannot be read,i=%d", i);
+			continue;
+		}
 		r = sc_pkcs15_read_file(p15card, &cert_info.path, &cert_der.value, &cert_der.len, 0, cert_info.compressed, cert_info.offset);
 
 		if (r) {

@@ -1068,10 +1068,8 @@ static int gids_read_binary(sc_card_t *card, unsigned int offset,
 		if (buffersize < 4) {
 			LOG_FUNC_RETURN(card->ctx, SC_ERROR_INVALID_DATA);
 		}
-		data->buffer = malloc(buffersize);
-		if (!data->buffer)
-			return SC_ERROR_OUT_OF_MEMORY;
-		memcpy(data->buffer, buffer, buffersize);
+		data->buffersize = buffersize - 4;
+		memcpy(data->buffer, buffer + 4, data->buffersize);
 		data->buffersize = sizeof(data->buffer);
 		data->state = GIDS_STATE_READ_DATA_PRESENT;
 	}

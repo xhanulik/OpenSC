@@ -56,6 +56,7 @@ typedef struct cac_private_data {
 	list_t general_list;            /* list of general containers */
 	cac_object_t *general_current;  /* current object for _ctl function */
 	sc_path_t *aca_path;		/* ACA path to be selected before pin verification */
+	int return_only_certinfo;	/* return the cert info from the object */
 } cac_private_data_t;
 
 #define CAC_DATA(card) ((cac_private_data_t*)card->drv_data)

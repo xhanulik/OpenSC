@@ -927,7 +927,7 @@ static int dnie_fill_cache(sc_card_t * card)
 	size_t count = 0;
 	size_t len = 0;
 	u8 *buffer = NULL;
-	u8 *pt = NULL, *p;
+	u8 *p;
 	sc_context_t *ctx = NULL;
 
 	if (!card || !card->ctx)

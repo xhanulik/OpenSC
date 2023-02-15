@@ -463,7 +463,7 @@ static int cac_read_binary(sc_card_t *card, unsigned int idx,
 	const u8 *cert_ptr;
 	size_t tl_len, val_len, tlv_len;
 	size_t len, tl_head_len, cert_len;
-	u8 cert_type, tag;
+	u8 tag;
 
 	SC_FUNC_CALLED(card->ctx, SC_LOG_DEBUG_VERBOSE);
 
@@ -546,7 +546,6 @@ static int cac_read_binary(sc_card_t *card, unsigned int idx,
 			 val_len, val_len);
 		cert_len = 0;
 		cert_ptr = NULL;
-		cert_type = 0;
 		for (tl_ptr = tl, val_ptr = val; tl_len >= 2;
 		    val_len -= len, val_ptr += len, tl_len -= tl_head_len) {
 			tl_start = tl_ptr;
@@ -568,14 +567,18 @@ static int cac_read_binary(sc_card_t *card, unsigned int idx,
 			}
 			if (tag == CAC_TAG_CERTINFO) {
 				if ((len >= 1) && (val_len >=1)) {
-					cert_type = *val_ptr;
+					if (priv->return_only_certinfo) {
+						priv->cache_buf = malloc(len);
+						priv->cache_buf_len = len;
+						memcpy(priv->cache_buf, val_ptr, len);
+					}
 				}
 			}
 			if (tag == CAC_TAG_MSCUID) {
 				sc_log_hex(card->ctx, "MSCUID", val_ptr, len);
 			}
 		}
-		if (cert_len > 0) {
+		if (cert_len > 0 && !priv->return_only_certinfo) {
 			priv->cache_buf = malloc(cert_len);
 			if (priv->cache_buf == NULL) {
 				r = SC_ERROR_OUT_OF_MEMORY;
@@ -583,7 +586,7 @@ static int cac_read_binary(sc_card_t *card, unsigned int idx,
 			}
 			priv->cache_buf_len = cert_len;
 			memcpy(priv->cache_buf, cert_ptr, cert_len);
-		} else {
+		} else if (!priv->return_only_certinfo) {
 			sc_log(card->ctx, "Can't read zero-length certificate");
 			goto done;
 		}
@@ -1084,7 +1087,22 @@ static int cac_select_file_by_type(sc_card_t *card, const sc_path_t *in_path, sc
 	 */
 	if (priv) { /* don't record anything if we haven't been initialized yet */
 		priv->object_type = CAC_OBJECT_TYPE_GENERIC;
-		if (cac_is_cert(priv, in_path)) {
+		sc_path_t tmp_path = { 0 };
+
+		/* ecec at the of of path denotes we want only certinfo from certificate */
+		priv->return_only_certinfo = 0;
+		if (pathlen >= 2 && path[pathlen - 2] == 0xec && path[pathlen - 1] == 0xec) {
+			priv->return_only_certinfo = 1;
+			path[pathlen - 2] = 0x00;
+			pathlen -= 2;
+		}
+		/* create tmp path from path and pathlen without possible ecec ending */
+		memcpy(&tmp_path, in_path, sizeof(sc_path_t));
+		memset(tmp_path.value, 0, SC_MAX_PATH_SIZE);
+		memcpy(tmp_path.value, path, pathlen);
+		tmp_path.len = pathlen;
+		/* check whether paths belongs to certificate*/
+		if (cac_is_cert(priv, &tmp_path)) {
 			priv->object_type = CAC_OBJECT_TYPE_CERT;
 		}
 

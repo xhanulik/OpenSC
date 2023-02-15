@@ -133,7 +133,6 @@ static int cac_read_binary(sc_card_t *card, unsigned int idx,
 	u8 *cert_ptr;
 	size_t val_len = 0;
 	size_t len, cert_len;
-	u8 cert_type;
 
 	SC_FUNC_CALLED(card->ctx, SC_LOG_DEBUG_VERBOSE);
 
@@ -165,7 +164,6 @@ static int cac_read_binary(sc_card_t *card, unsigned int idx,
 		goto done;
 	}
 
-	cert_type = val[0];
 	cert_ptr = val + 1;
 	cert_len = val_len - 1;
 
