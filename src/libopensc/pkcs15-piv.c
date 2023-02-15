@@ -752,7 +752,7 @@ static int sc_pkcs15emu_piv_init(sc_pkcs15_card_t *p15card)
 		}
 
 		private_obj = cert_obj.flags & SC_PKCS15_CO_FLAG_PRIVATE;
-		r = sc_pkcs15_read_file(p15card, &cert_info.path, &cert_der.value, &cert_der.len, private_obj);
+		r = sc_pkcs15_read_file(p15card, &cert_info.path, &cert_der.value, &cert_der.len, private_obj, cert_info.compressed, cert_info.offset);
 
 		if (r) {
 			sc_log(card->ctx,  "No cert found,i=%d", i);

@@ -294,6 +294,9 @@ struct sc_pkcs15_cert_info {
 	struct sc_path path;
 
 	struct sc_pkcs15_der value;
+
+	int compressed;		/* boolean, whether certificate is compressed */
+	size_t offset;		/* compression offset */
 };
 typedef struct sc_pkcs15_cert_info sc_pkcs15_cert_info_t;
 
@@ -926,7 +929,8 @@ void sc_pkcs15_free_object(struct sc_pkcs15_object *obj);
 /* Generic file i/o */
 int sc_pkcs15_read_file(struct sc_pkcs15_card *p15card,
 			const struct sc_path *path,
-			u8 **buf, size_t *buflen, int private_data);
+			u8 **buf, size_t *buflen, int private_data,
+			int compressed, size_t c_offset);
 
 /* Caching functions */
 int sc_pkcs15_read_cached_file(struct sc_pkcs15_card *p15card,
