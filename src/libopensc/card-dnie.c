@@ -904,81 +904,16 @@ static int dnie_finish(struct sc_card *card)
 /* ISO 7816-4 functions */
 
 /**
- * Uncompress data if in compressed format.
- *
- * @param card pointer to sc_card_t structure
- * @param from buffer to get data from
- * @param len pointer to buffer length
- * @return uncompressed or original buffer; len points to new buffer length
- *        on error return null
- */
-static u8 *dnie_uncompress(sc_card_t * card, u8 * from, size_t *len)
-{
-	u8 *upt = from;
-#ifdef ENABLE_ZLIB
-	int res = SC_SUCCESS;
-	size_t uncompressed = 0L;
-	size_t compressed = 0L;
-
-	if (!card || !card->ctx || !from || !len)
-		return NULL;
-	LOG_FUNC_CALLED(card->ctx);
-
-	/* if data size not enough for compression header assume uncompressed */
-	if (*len < 8)
-		goto compress_exit;
-	/* evaluate compressed an uncompressed sizes (little endian format) */
-	uncompressed = lebytes2ulong(from);
-	compressed = lebytes2ulong(from + 4);
-	/* if compressed size doesn't match data length assume not compressed */
-	if (compressed != (*len) - 8)
-		goto compress_exit;
-	/* if compressed size greater than uncompressed, assume uncompressed data */
-	if (uncompressed < compressed)
-		goto compress_exit;
-	/* Do not try to allocate insane size if we receive bogus data */
-	if (uncompressed > MAX_FILE_SIZE)
-		goto compress_exit;
-
-	sc_log(card->ctx, "Data seems to be compressed. calling uncompress");
-	/* ok: data seems to be compressed */
-	upt = calloc(uncompressed, sizeof(u8));
-	if (!upt) {
-		sc_log(card->ctx, "alloc() for uncompressed buffer failed");
-		return NULL;
-	}
-	*len = uncompressed;
-	res = sc_decompress(upt,	/* try to uncompress by calling sc_xx routine */
-			    len,
-			    from + 8, (size_t) compressed, COMPRESSION_ZLIB);
-	if (res != SC_SUCCESS) {
-		sc_log(card->ctx, "Uncompress() failed or data not compressed");
-		goto compress_exit;	/* assume not need uncompression */
-	}
-	/* Done; update buffer len and return pt to uncompressed data */
-	sc_log_hex(card->ctx, "Compressed data", from + 8, compressed);
-	sc_log_hex(card->ctx, "Uncompressed data", upt, uncompressed);
- compress_exit:
-
-#endif
-
-	sc_log(card->ctx, "uncompress: returning with%s de-compression ",
-	       (upt == from) ? "out" : "");
-	return upt;
-}
-
-/**
  * Fill file cache for read_binary() operation.
  *
  * Fill a temporary buffer by mean of consecutive calls to read_binary()
  * until card sends eof
  *
  * DNIe card stores user certificates in compressed format. so we need
- * some way to detect and uncompress on-the-fly compressed files, to
- * let read_binary() work transparently. 
- * This is the main goal of this routine: create an in-memory buffer 
- * for read_binary operation, filling this buffer on first read_binary() 
- * call, and uncompress data if compression detected. Further 
+ * some way to detect and uncompress on-the-fly compressed files - this is 
+ * done in pkcs#15 layer.
+ * The main goal of this routine is to create an in-memory buffer 
+ * for read_binary operation. Further 
  * read_binary() calls then make use of cached data, instead
  * of accessing the card
  *
@@ -1068,21 +1003,13 @@ static int dnie_fill_cache(sc_card_t * card)
 	}
 
  read_done:
-	/* no more data to read: check if data is compressed */
-	pt = dnie_uncompress(card, buffer, &len);
+	/* no more data to read */
 	free((void *)apdu.data);
 	if (apdu.resp != tmp)
 		free(apdu.resp);
-	if (pt == NULL) {
-		sc_log(ctx, "Uncompress process failed");
-		free(buffer);
-		LOG_FUNC_RETURN(ctx, SC_ERROR_INTERNAL);
-	}
-	if (pt != buffer)
-		free(buffer);
 
 	/* ok: as final step, set correct cache data into dnie_priv structures */
-	GET_DNIE_PRIV_DATA(card)->cache = pt;
+	GET_DNIE_PRIV_DATA(card)->cache = buffer;
 	GET_DNIE_PRIV_DATA(card)->cachelen = len;
 	sc_log(ctx,
 	       "fill_cache() done. length '%"SC_FORMAT_LEN_SIZE_T"u' bytes",
@@ -1094,7 +1021,6 @@ static int dnie_fill_cache(sc_card_t * card)
  * OpenDNIe implementation of read_binary().
  *
  * Reads a binary stream from card by mean of READ BINARY iso command
- * Creates and handle a cache to allow data uncompression
  *
  * @param card pointer to sc_card_t structure
  * @param idx offset from card file to ask data for
