@@ -143,6 +143,9 @@ static int sc_pkcs15emu_idprime_init(sc_pkcs15_card_t *p15card)
 		struct sc_pkcs15_object prkey_obj;
 		sc_pkcs15_der_t cert_der;
 		sc_pkcs15_cert_t *cert_out = NULL;
+		sc_file_t *file = NULL;
+		u8 buf[2];
+		size_t read_len = 0;
 
 		r = (card->ops->card_ctl)(card, SC_CARDCTL_IDPRIME_GET_NEXT_OBJECT, &prkey_info);
 		LOG_TEST_GOTO_ERR(card->ctx, r, "Can not get next object");
@@ -172,6 +175,22 @@ static int sc_pkcs15emu_idprime_init(sc_pkcs15_card_t *p15card)
 		snprintf(prkey_obj.label, SC_PKCS15_MAX_LABEL_SIZE, PRIVKEY_LABEL_TEMPLATE, i+1);
 		prkey_obj.flags = SC_PKCS15_CO_FLAG_PRIVATE;
 		sc_pkcs15_format_id(pin_id, &prkey_obj.auth_id);
+
+		/* Read first few bytes to find out whether certificate is compressed or not */
+		r = sc_select_file(card, &cert_info.path, &file);
+		if (file->size < 8) {
+			sc_file_free(file);
+			continue;
+		}
+		r = sc_read_binary(card, 0, buf, 2, 0);
+		sc_file_free(file);
+		if (read_len != 2)
+			continue;
+
+		if (buf[0] == 1 && buf[1] == 0) {
+			cert_info.compressed = 1;
+			cert_info.offset = 4;
+		}
 
 		r = sc_pkcs15_read_file(p15card, &cert_info.path, &cert_der.value, &cert_der.len, 0, cert_info.compressed, cert_info.offset);
 
