@@ -243,6 +243,22 @@ static int piv_detect_card(sc_pkcs15_card_t *p15card)
 }
 
 
+static int piv_compressed_cert(struct sc_context *ctx, u8 *value, size_t length) {
+	size_t taglen = 0;
+	const u8* tag = NULL;
+	if (!(tag = sc_asn1_find_tag(ctx, value, length, 0x53, &taglen)) || taglen == 0)
+		return -1;
+	if (!(tag = sc_asn1_find_tag(ctx, tag, taglen, 0x71, &taglen)) || taglen == 0)
+		return -1;
+
+	/* 800-72-1 not clear if this is 80 or 01 Sent comment to NIST for 800-72-2 */
+	/* 800-73-3 says it is 01, keep dual test so old cards still work */
+	if (tag && taglen > 0 && (((*tag) & 0x80) || ((*tag) & 0x01)))
+		return 1;
+	return 0;
+}
+
+
 static int sc_pkcs15emu_piv_init(sc_pkcs15_card_t *p15card)
 {
 
@@ -722,6 +738,10 @@ static int sc_pkcs15emu_piv_init(sc_pkcs15_card_t *p15card)
 		sc_pkcs15_der_t   cert_der;
 		sc_pkcs15_cert_t *cert_out = NULL;
 		int private_obj;
+		struct sc_path certificate_object_path = {0};
+		u8 *certificate_object_value = NULL;
+		size_t certificate_object_len = 0;
+		
 		
 		ckis[i].cert_found = 0;
 		ckis[i].key_alg = -1;
@@ -748,6 +768,23 @@ static int sc_pkcs15emu_piv_init(sc_pkcs15_card_t *p15card)
 		r = sc_card_ctl(card, SC_CARDCTL_PIV_OBJECT_PRESENT, &cert_info.path);
 		if (r == 1) {
 			sc_log(card->ctx,  "Cert can not be present,i=%d", i);
+			continue;
+		}
+
+		/* Check whether the certificate is compressed or not */
+		sc_format_path(certs[i].path, &certificate_object_path);
+		/* Extracted certificates have xxxxcece path, certificate objects have only xxxx */
+		certificate_object_path.value[2] = '\0';
+		certificate_object_path.len = 2;
+		r = sc_pkcs15_read_file(p15card, &certificate_object_path, &certificate_object_value, &certificate_object_len, 0, 0, 0);
+		if (r) {
+			sc_log(card->ctx,  "No cert found,i=%d", i);
+			continue;
+		}
+		/* Check whether the certificate is compressed or not */
+		cert_info.compressed = piv_compressed_cert(card->ctx, certificate_object_value, certificate_object_len);
+		if (cert_info.compressed < 0) {
+			sc_log(card->ctx,  "No cert found,i=%d", i);
 			continue;
 		}
 

@@ -1077,6 +1077,7 @@ piv_cache_internal_data(sc_card_t *card, int enumtag)
 
 	/* get the certificate out */
 	 if (piv_objects[enumtag].flags & PIV_OBJECT_TYPE_CERT) {
+		/* tag 0x70 contains certificate itself */
 		tag = sc_asn1_find_tag(card->ctx, body, bodylen, 0x70, &taglen);
 		if (tag == NULL)
 			LOG_FUNC_RETURN(card->ctx, SC_ERROR_OBJECT_NOT_VALID);
