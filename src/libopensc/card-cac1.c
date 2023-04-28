@@ -133,6 +133,7 @@ static int cac_read_binary(sc_card_t *card, unsigned int idx,
 	u8 *cert_ptr;
 	size_t val_len = 0;
 	size_t len, cert_len;
+	u8 cert_type;
 
 	SC_FUNC_CALLED(card->ctx, SC_LOG_DEBUG_VERBOSE);
 
@@ -164,17 +165,28 @@ static int cac_read_binary(sc_card_t *card, unsigned int idx,
 		goto done;
 	}
 
+	cert_type = val[0];
 	cert_ptr = val + 1;
 	cert_len = val_len - 1;
 
-	if (cert_len > 0) {
-		priv->cache_buf = malloc(cert_len);
+	if (priv->return_only_certinfo) {
+		priv->cache_buf = malloc(1);
 		if (priv->cache_buf == NULL) {
 			r = SC_ERROR_OUT_OF_MEMORY;
 			goto done;
 		}
-		priv->cache_buf_len = cert_len;
-		memcpy(priv->cache_buf, cert_ptr, cert_len);
+		priv->cache_buf_len = 1;
+		priv->cache_buf[0] = cert_type;
+	} else {
+		if (cert_len > 0) {
+			priv->cache_buf = malloc(cert_len);
+			if (priv->cache_buf == NULL) {
+				r = SC_ERROR_OUT_OF_MEMORY;
+				goto done;
+			}
+			priv->cache_buf_len = cert_len;
+			memcpy(priv->cache_buf, cert_ptr, cert_len);
+		}
 	}
 
 	/* OK we've read the data, now copy the required portion out to the callers buffer */
@@ -247,6 +259,14 @@ static int cac_select_file_by_type(sc_card_t *card, const sc_path_t *in_path, sc
 		}
 		priv->cache_buf_len = 0;
 		priv->cached = 0;
+
+		/* ecec at the of of path denotes we want only certinfo from certificate */
+		priv->return_only_certinfo = 0;
+		if (pathlen >= 2 && path[pathlen - 2] == 0xec && path[pathlen - 1] == 0xec) {
+			priv->return_only_certinfo = 1;
+			path[pathlen - 2] = 0x00;
+			pathlen -= 2;
+		}
 	}
 
 	if (in_path->aid.len) {
