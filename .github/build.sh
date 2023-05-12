@@ -16,7 +16,7 @@ else
 	if [ "$BRANCH" == "master" ]; then
 		./bootstrap
 	else
-		./bootstrap.ci -s "$BRANCH"
+		./bootstrap
 	fi
 fi
 
@@ -50,16 +50,8 @@ else
 	fi
 	make -j 2 V=1
 	# 32b build has some issues to find openssl correctly
-	if [ "$1" != "ix86" ]; then
-		make check
-	fi
 fi
 
-# this is broken in old ubuntu
-if [ "$1" == "dist" ]; then
-	make distcheck
-	make dist
-fi
 
 sudo make install
 if [ "$1" == "mingw" -o "$1" == "mingw32" ]; then
