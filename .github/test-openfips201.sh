@@ -17,6 +17,8 @@ pushd OpenFIPS201
 ant all -f build/build.xml
 popd
 
+javac -classpath jcardsim/target/jcardsim-3.0.5-SNAPSHOT.jar:OpenFIPS201/tools/sdk/gp221/gp221.jar OpenFIPS201/src/com/makina/security/openfips201/*.java;
+
 echo "com.licel.jcardsim.card.applet.0.AID=A000000308000010000100" > openfips201_jcardsim.cfg;
 echo "com.licel.jcardsim.card.applet.0.Class=com.makina.security.openfips201.OpenFIPS201" >> openfips201_jcardsim.cfg;
 echo "com.licel.jcardsim.card.ATR=3B80800101" >> openfips201_jcardsim.cfg;
@@ -27,7 +29,7 @@ echo "com.licel.jcardsim.vsmartcard.port=35963" >> openfips201_jcardsim.cfg;
 . .github/restart-pcscd.sh
 
 # start the applet and run couple of commands against that
-java -noverify -cp OpenFIPS201/build/bin/:jcardsim/target/jcardsim-3.0.5-SNAPSHOT.jar com.licel.jcardsim.remote.VSmartCard openfips201_jcardsim.cfg >/dev/null &
+java -noverify -cp OpenFIPS201/src/:jcardsim/target/jcardsim-3.0.5-SNAPSHOT.jar com.licel.jcardsim.remote.VSmartCard openfips201_jcardsim.cfg >/dev/null &
 PID=$!
 sleep 5
 opensc-tool --card-driver default --send-apdu 80b80000120ba000000308000010000100050000020F0F
