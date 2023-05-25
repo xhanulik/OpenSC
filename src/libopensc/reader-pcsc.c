@@ -373,11 +373,14 @@ static int refresh_attributes(sc_reader_t *reader)
 	}
 
 	rv = priv->gpriv->SCardGetStatusChange(priv->gpriv->pcsc_ctx, 0, &priv->reader_state, 1);
+	sc_log(reader->ctx, "[TEST] refresh_attributes: dwEventState: 0x%08X", (unsigned int)priv->reader_state.dwEventState);
+	sc_log(reader->ctx, "[TEST] refresh_attributes: dwCurrentState: 0x%08X", (unsigned int)priv->reader_state.dwCurrentState);
 
 	if (rv != SCARD_S_SUCCESS) {
 		if (rv == (LONG)SCARD_E_TIMEOUT) {
 			/* Timeout, no change from previous recorded state. Make sure that
 			 * changed flag is not set. */
+			sc_log(reader->ctx, "[TEST] refresh_attributes: SCARD_E_TIMEOUT reader->flag: 0x%08X", (unsigned int)reader->flags);
 			reader->flags &= ~SC_READER_CARD_CHANGED;
 			/* Make sure to preserve the CARD_PRESENT flag if the reader was
 			 * reattached and we called the refresh_attributes too recently */
@@ -709,6 +712,8 @@ static int pcsc_lock(sc_reader_t *reader)
 						r);
 				return r;
 			}
+			sc_log(reader->ctx,
+						"pcsc_lock SC_ERROR_READER_REATTACHED but connected back (%d)", r);
 			/* return failure so that upper layers will be notified and try to lock again */
 			return SC_ERROR_READER_REATTACHED;
 		case SCARD_W_RESET_CARD:

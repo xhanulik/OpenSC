@@ -477,6 +477,10 @@ int sc_lock(sc_card_t *card)
 		if (card->reader->ops->lock != NULL) {
 			r = card->reader->ops->lock(card->reader);
 			while (r == SC_ERROR_CARD_RESET || r == SC_ERROR_READER_REATTACHED) {
+				if (r == SC_ERROR_CARD_RESET)
+					sc_log(card->ctx, "sc_lock SC_ERROR_CARD_RESET");
+				else 
+					sc_log(card->ctx, "sc_lock SC_ERROR_READER_REATTACHED");
 				sc_invalidate_cache(card);
 				if (was_reset++ > 4) /* TODO retry a few times */
 					break;
