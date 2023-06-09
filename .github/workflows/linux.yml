@@ -169,6 +169,19 @@ jobs:
       - run: .github/test-openpgp.sh
       - run: .github/test-openpgp.sh valgrind
 
+  test-openfips201:
+    runs-on: ubuntu-20.04
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        id: cache-build
+        with:
+          path: ./*
+          key: ${{ runner.os }}-${{ github.sha }}
+      - run: .github/setup-linux.sh piv
+      - run: .github/test-openfips201.sh
+
   build-clang-tidy:
     runs-on: ubuntu-20.04
     needs: [build]
