@@ -36,6 +36,8 @@
 #include "pkcs11/pkcs11.h"
 /* TODO doxygen comments */
 
+#define SC_PKCS1_PADDING_MIN_SIZE 11
+
 /*
  * Prefixes for pkcs-v1 signatures
  */
@@ -182,6 +184,140 @@ sc_pkcs1_strip_02_padding(sc_context_t *ctx, const u8 *data, size_t len, u8 *out
 	sc_log(ctx, "stripped output(%"SC_FORMAT_LEN_SIZE_T"u): %s", len - n,
 	       sc_dump_hex(out, len - n));
 	LOG_FUNC_RETURN(ctx, len - n);
+}
+
+/* Original source: https://github.com/openssl/openssl/blob/9890cc42daff5e2d0cad01ac4bf78c391f599a6e/include/internal/constant_time.h */
+static unsigned int
+constant_time_msb(unsigned int a)
+{
+	return 0 - (a >> (sizeof(a) * 8 - 1));
+}
+
+static unsigned int
+constant_time_is_zero(unsigned int a)
+{
+	return constant_time_msb(~a & (a - 1));
+}
+
+static unsigned int
+constant_time_lt(unsigned int a, unsigned int b)
+{
+	return constant_time_msb(a ^ ((a ^ b) | ((a - b) ^ b)));
+}
+
+static unsigned int
+constant_time_ge(unsigned int a, unsigned int b)
+{
+	return ~constant_time_lt(a, b);
+}
+
+static unsigned int
+constant_time_eq(unsigned int a, unsigned int b)
+{
+	return constant_time_is_zero(a ^ b);
+}
+
+static unsigned int
+value_barrier(unsigned int a)
+{
+	volatile unsigned int r = a;
+	return r;
+}
+
+static unsigned int
+constant_time_select(unsigned int mask, unsigned int a, unsigned int b)
+{
+	return (value_barrier(mask) & a) | (value_barrier(~mask) & b);
+}
+
+static int
+constant_time_select_int(unsigned int mask, int a, int b)
+{
+	return (int)constant_time_select(mask, (unsigned)(a), (unsigned)(b));
+}
+
+static u8
+constant_time_select_8(u8 mask, u8 a, u8 b)
+{
+	return (u8)constant_time_select(mask, a, b);
+}
+
+/* Original source: https://github.com/openssl/openssl/blob/9890cc42daff5e2d0cad01ac4bf78c391f599a6e/crypto/rsa/rsa_pk1.c#L171 */
+int
+sc_pkcs1_strip_02_padding_constant_time(sc_context_t *ctx, int n, const u8 *data, int data_len, u8 *out, int *out_len)
+{
+	int i = 0;
+	u8 *msg = NULL;
+	unsigned int good, found_zero_byte, mask;
+	int zero_index = 0, msg_index, mlen = -1, len = 0;
+	LOG_FUNC_CALLED(ctx);
+
+	if (data == NULL || data_len <= 0 || data_len > n || n < SC_PKCS1_PADDING_MIN_SIZE)
+		LOG_FUNC_RETURN(ctx, SC_ERROR_INTERNAL);
+
+	msg = calloc(n, sizeof(u8));
+	if (msg == NULL)
+		LOG_FUNC_RETURN(ctx, SC_ERROR_INTERNAL);
+
+	/*
+	 * We can not check length of input data straight away and still we need to read
+	 * from input even when the input is not as long as needed to keep the time constant.
+	 * If data has wrong size, it is padded by zeroes from left and the following checks
+	 * do not pass.
+	 */
+	len = data_len;
+	for (data += len, msg += n, i = 0; i < n; i++) {
+		mask = ~constant_time_is_zero(len);
+		len -= 1 & mask;
+		data -= 1 & mask;
+		*--msg = *data & mask;
+	}
+	// check first byte to be 0x00
+	good = constant_time_is_zero(msg[0]);
+	// check second byte to be 0x02
+	good &= constant_time_eq(msg[1], 2);
+
+	// find zero byte after random data in padding
+	found_zero_byte = 0;
+	for (i = 2; i < n; i++) {
+		unsigned int equals0 = constant_time_is_zero(msg[i]);
+		zero_index = constant_time_select_int(~found_zero_byte & equals0, i, zero_index);
+		found_zero_byte |= equals0;
+	}
+
+	// zero_index stands for index of last found zero
+	good &= constant_time_ge(zero_index, 2 + 8);
+
+	// start of the actual message in data
+	msg_index = zero_index + 1;
+
+	// length of message
+	mlen = data_len - msg_index;
+
+	// check that there is a message after padding
+	good &= constant_time_ge(mlen, 1);
+	// check that message fits into out buffer
+	good &= constant_time_ge(*out_len, mlen);
+
+	// move the result in-place by |num|-SC_PKCS1_PADDING_MIN_SIZE-|mlen| bytes to the left.
+	*out_len = constant_time_select_int(constant_time_lt(n - SC_PKCS1_PADDING_MIN_SIZE, *out_len),
+									n - SC_PKCS1_PADDING_MIN_SIZE, *out_len);
+	for (msg_index = 1; msg_index < n - SC_PKCS1_PADDING_MIN_SIZE; msg_index <<= 1) {
+		mask = ~constant_time_eq(msg_index & (n - SC_PKCS1_PADDING_MIN_SIZE - mlen), 0);
+		for (i = SC_PKCS1_PADDING_MIN_SIZE; i < n - msg_index; i++)
+			msg[i] = constant_time_select_8(mask, msg[i + msg_index], msg[i]);
+	}
+	// move message into out buffer, if good
+	for (i = 0; i < *out_len; i++) {
+		int msg_index;
+		// when out is longer than message in data, use some bogus index in msg
+		mask = good & constant_time_lt(i, mlen);
+		msg_index = constant_time_select_int(mask, i + SC_PKCS1_PADDING_MIN_SIZE, 0); // to now overflow msg buffer
+		out[i] = constant_time_select_8(mask, msg[msg_index], out[i]);
+	}
+
+	free(msg);
+	return constant_time_select_int(good, mlen, SC_ERROR_INTERNAL);
 }
 
 #ifdef ENABLE_OPENSSL

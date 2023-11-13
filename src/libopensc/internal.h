@@ -168,6 +168,8 @@ int sc_pkcs1_strip_01_padding(struct sc_context *ctx, const u8 *in_dat, size_t i
 		u8 *out_dat, size_t *out_len);
 int sc_pkcs1_strip_02_padding(struct sc_context *ctx, const u8 *data, size_t len,
 		u8 *out_dat, size_t *out_len);
+int sc_pkcs1_strip_02_padding_constant_time(sc_context_t *ctx, int n, const u8 *data,
+		int data_len, u8 *out, int *out_len);
 int sc_pkcs1_strip_digest_info_prefix(unsigned int *algorithm,
 		const u8 *in_dat, size_t in_len, u8 *out_dat, size_t *out_len);
 #ifdef ENABLE_OPENSSL
