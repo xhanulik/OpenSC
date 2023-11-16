@@ -28,6 +28,7 @@
 #include "libopensc/cardctl.h"
 #include "ui/notify.h"
 #include "common/compat_strnlen.h"
+#include "common/constant-time.h"
 #ifdef ENABLE_OPENSSL
 #include <openssl/sha.h>
 #include <openssl/crypto.h>
@@ -4603,15 +4604,52 @@ pkcs15_prkey_decrypt(struct sc_pkcs11_session *session, void *obj,
 	rv = sc_pkcs15_decipher(fw_data->p15_card, prkey->prv_p15obj, flags,
 			pEncryptedData, ulEncryptedDataLen, decrypted, sizeof(decrypted), pMechanism);
 
-	if (rv < 0 && !sc_pkcs11_conf.lock_login && !prkey_has_path)
+	if (!((flags & SC_ALGORITHM_RSA_PAD_PKCS1) && constant_time_eq_s(rv, SC_ERROR_WRONG_PADDING)) &&
+			rv < 0 && !sc_pkcs11_conf.lock_login && !prkey_has_path)
 		if (reselect_app_df(fw_data->p15_card) == SC_SUCCESS)
 			rv = sc_pkcs15_decipher(fw_data->p15_card, prkey->prv_p15obj, flags,
 					pEncryptedData, ulEncryptedDataLen, decrypted, sizeof(decrypted), pMechanism);
 
 	sc_unlock(p11card->card);
 
-	sc_log(context, "Decryption complete. Result %d.", rv);
+	/* Handle buffer after PKCS#1 v1.5 depadding constant-time */
+	if (flags & SC_ALGORITHM_RSA_PAD_PKCS1) {
+		CK_ULONG mask, good, rv_pkcs11;
 
+		sc_log(context, "Decryption complete.");
+		/* only padding error must be handled in constant-time way */
+		if ((~constant_time_eq_s(rv, SC_ERROR_WRONG_PADDING) & constant_time_lt_s(sizeof(decrypted), rv)))
+			return sc_to_cryptoki_error(rv, "C_Decrypt");
+
+		/* check rv for error */
+		good = ~constant_time_eq_s(rv, SC_ERROR_WRONG_PADDING);
+		rv_pkcs11 = constant_time_select_s(good, CKR_OK, SC_ERROR_WRONG_PADDING);
+		if (pData == NULL_PTR) {
+			/* set length only if rv good */
+			*pulDataLen = constant_time_select_s(good, rv, *pulDataLen);
+			/* return error only if original rv < 0 */
+			return rv_pkcs11;
+		}
+
+		/* check whether *pulDataLen < rv and set return value accordingly */
+		mask = good & constant_time_lt_s(*pulDataLen, rv);
+		rv_pkcs11 = constant_time_select_s(mask, CKR_BUFFER_TOO_SMALL, rv_pkcs11);
+		good &= ~mask;
+
+		/* move everything from decrypted into out buffer, if rv is ok */
+		for (CK_ULONG i = 0; i < *pulDataLen; i++) { /* iterate over whole pData to not disclose real depadded length */
+			CK_ULONG msg_index;
+			mask = good & constant_time_lt_s(i, sizeof(decrypted)); /* i should be in the bounds of decrypted */
+			mask &= constant_time_lt_s(i, constant_time_select_s(good, rv, 0)); /* check that is in bounds of depadded message */
+			msg_index = constant_time_select_s(mask, i, 0);
+			pData[i] = constant_time_select_8(mask, decrypted[msg_index], pData[i]);
+		}
+		*pulDataLen = constant_time_select_s(good, rv, *pulDataLen);
+		/* do not log error code to prevent side channel attack */
+		return rv_pkcs11;
+	}
+
+	sc_log(context, "Decryption complete. Result %d.", rv);
 	if (rv < 0)
 		return sc_to_cryptoki_error(rv, "C_Decrypt");
 
@@ -4622,7 +4660,6 @@ pkcs15_prkey_decrypt(struct sc_pkcs11_session *session, void *obj,
 	if (buff_too_small)
 		return CKR_BUFFER_TOO_SMALL;
 	memcpy(pData, decrypted, *pulDataLen);
-
 	return CKR_OK;
 }
 
