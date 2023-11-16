@@ -25,6 +25,7 @@
 
 #include "sc-pkcs11.h"
 #include "common/compat_overflow.h"
+#include "common/constant-time.h"
 
 /* Also used for verification data */
 struct hash_signature_info {
@@ -1093,7 +1094,8 @@ sc_pkcs11_decr(struct sc_pkcs11_session *session,
 	rv = op->type->decrypt(op, pEncryptedData, ulEncryptedDataLen,
 	                       pData, pulDataLen);
 
-	if (rv != CKR_BUFFER_TOO_SMALL && pData != NULL)
+	/* terminate session for any return value except CKR_BUFFER_TOO_SMALL */
+	if (!constant_time_eq_s(rv, CKR_BUFFER_TOO_SMALL) && pData != NULL)
 		session_stop_operation(session, SC_PKCS11_OPERATION_DECRYPT);
 
 	return rv;
@@ -1535,6 +1537,13 @@ sc_pkcs11_decrypt(sc_pkcs11_operation_t *operation,
 
 	if (pulDataLen)
 		*pulDataLen = ulDataLen;
+
+	/* No need for DecryptFinalize */
+	if (((CK_MECHANISM_PTR) &operation->mechanism)->mechanism == CKM_RSA_PKCS) {
+		if (pulDataLen)
+			*pulDataLen = ulDataLen;
+		return rv;
+	}
 
 	if (rv != CKR_OK)
 		return rv;
