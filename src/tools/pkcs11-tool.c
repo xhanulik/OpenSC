@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <limits.h>
+#include <assert.h>
 
 #ifndef _WIN32
 #include <sys/types.h>
@@ -2500,18 +2501,110 @@ static void verify_signature(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 		printf("Cryptoki returned error: %s\n", CKR2Str(rv));
 }
 
+uint64_t get_time_before() {
+    uint64_t time_before = 0;
+#if defined( __s390x__ )
+    /* The 64 bit TOD (time-of-day) value is running at 4096.000MHz, but
+     * on some machines not all low bits are updated (the effective frequency
+     * remains though)
+     */
+
+    /* use STCKE as it has lower overhead,
+     * see http://publibz.boulder.ibm.com/epubs/pdf/dz9zr007.pdf
+     */
+    //asm volatile (
+    //    "stck    %0": "=Q" (time_before) :: "memory", "cc");
+
+    uint8_t clk[16];
+    asm volatile (
+          "stcke %0" : "=Q" (clk) :: "memory", "cc");
+    /* since s390x is big-endian we can just do a byte-by-byte copy,
+     * First byte is the epoch number (143 year cycle) while the following
+     * 8 bytes are the same as returned by STCK */
+    time_before = *(uint64_t *)(clk + 1);
+#elif defined( __PPC64__ )
+    asm volatile (
+        "mftb    %0": "=r" (time_before) :: "memory", "cc");
+#elif defined( __aarch64__ )
+    asm volatile (
+        "mrs %0, cntvct_el0": "=r" (time_before) :: "memory", "cc");
+#elif defined( __x86_64__ )
+    uint32_t time_before_high = 0, time_before_low = 0;
+    asm volatile (
+        "CPUID\n\t"
+        "RDTSC\n\t"
+        "mov %%edx, %0\n\t"
+        "mov %%eax, %1\n\t" : "=r" (time_before_high),
+        "=r" (time_before_low)::
+        "%rax", "%rbx", "%rcx", "%rdx");
+    time_before = (uint64_t)time_before_high<<32 | time_before_low;
+#else
+#error Unsupported architecture
+#endif /* ifdef __s390x__ */
+    return time_before;
+}
+
+/* Get an architecture specific most precise clock source with the lowest
+ * overhead. Should be executed at the end of the measurement period
+ * (because of barriers against speculative execution
+ */
+uint64_t get_time_after() {
+	uint64_t time_after = 0;
+#if defined( __s390x__ )
+	/* The 64 bit TOD (time-of-day) value is running at 4096.000MHz, but
+	 * on some machines not all low bits are updated (the effective frequency
+	 * remains though)
+	 */
+
+	/* use STCKE as it has lower overhead,
+	 * see http://publibz.boulder.ibm.com/epubs/pdf/dz9zr007.pdf
+	 */
+	//asm volatile (
+	//    "stck    %0": "=Q" (time_before) :: "memory", "cc");
+
+	uint8_t clk[16];
+	asm volatile (
+		  "stcke %0" : "=Q" (clk) :: "memory", "cc");
+	/* since s390x is big-endian we can just do a byte-by-byte copy,
+	 * First byte is the epoch number (143 year cycle) while the following
+	 * 8 bytes are the same as returned by STCK */
+	time_after = *(uint64_t *)(clk + 1);
+#elif defined( __PPC64__ )
+	/* Note: mftb can be used with a single instruction on ppc64, for ppc32
+	 * it's necessary to read upper and lower 32bits of the values in two
+	 * separate calls and verify that we didn't do that during low value
+	 * overflow
+	 */
+	asm volatile (
+		"mftb    %0": "=r" (time_after) :: "memory", "cc");
+#elif defined( __aarch64__ )
+	asm volatile (
+		"mrs %0, cntvct_el0": "=r" (time_after) :: "memory", "cc");
+#elif defined( __x86_64__ )
+	uint32_t time_after_high = 0, time_after_low = 0;
+	asm volatile (
+		"RDTSCP\n\t"
+		"mov %%edx, %0\n\t"
+		"mov %%eax, %1\n\t"
+		"CPUID\n\t": "=r" (time_after_high),
+		"=r" (time_after_low)::
+		"%rax", "%rbx", "%rcx", "%rdx");
+	time_after = (uint64_t)time_after_high<<32 | time_after_low;
+#else
+#error Unsupported architecture
+#endif /* ifdef __s390x__ */
+	return time_after;
+}
+
 static void decrypt_data(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 		CK_OBJECT_HANDLE key)
 {
-	unsigned char	in_buffer[1024], out_buffer[1024];
+	unsigned char	*in_buffer = NULL, *out_buffer = NULL;
 	CK_MECHANISM	mech;
 	CK_RV		rv;
-	CK_RSA_PKCS_OAEP_PARAMS oaep_params;
-	CK_ULONG	in_len, out_len;
+	CK_ULONG	in_len = 128, out_len = 128;
 	int		fd_in, fd_out;
-	int		r;
-	CK_BYTE_PTR	iv = NULL;
-	size_t		iv_size = 0;
+	int 	r;
 
 	if (!opt_mechanism_used)
 		if (!find_mechanism(slot, CKF_DECRYPT|opt_allow_sw, NULL, 0, &opt_mechanism))
@@ -2520,153 +2613,82 @@ static void decrypt_data(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 	fprintf(stderr, "Using decrypt algorithm %s\n", p11_mechanism_to_name(opt_mechanism));
 	memset(&mech, 0, sizeof(mech));
 	mech.mechanism = opt_mechanism;
-	oaep_params.hashAlg = 0;
 
 	if (opt_hash_alg != 0 && opt_mechanism != CKM_RSA_PKCS_OAEP)
 		util_fatal("The hash-algorithm is applicable only to "
-               "RSA-PKCS-OAEP mechanism");
+			   "RSA-PKCS-OAEP mechanism");
 
 
-	/* set "default" MGF and hash algorithms. We can overwrite MGF later */
-	switch (opt_mechanism) {
-	case CKM_RSA_PKCS_OAEP:
-		oaep_params.hashAlg = opt_hash_alg;
-		switch (opt_hash_alg) {
-		case CKM_SHA_1:
-			oaep_params.mgf = CKG_MGF1_SHA1;
-			break;
-		case CKM_SHA224:
-			oaep_params.mgf = CKG_MGF1_SHA224;
-			break;
-		case CKM_SHA3_224:
-			oaep_params.mgf = CKG_MGF1_SHA3_224;
-			break;
-		case CKM_SHA3_256:
-			oaep_params.mgf = CKG_MGF1_SHA3_256;
-			break;
-		case CKM_SHA3_384:
-			oaep_params.mgf = CKG_MGF1_SHA3_384;
-			break;
-		case CKM_SHA3_512:
-			oaep_params.mgf = CKG_MGF1_SHA3_512;
-			break;
-		default:
-			oaep_params.hashAlg = CKM_SHA256;
-			/* fall through */
-		case CKM_SHA256:
-			oaep_params.mgf = CKG_MGF1_SHA256;
-			break;
-		case CKM_SHA384:
-			oaep_params.mgf = CKG_MGF1_SHA384;
-			break;
-		case CKM_SHA512:
-			oaep_params.mgf = CKG_MGF1_SHA512;
-			break;
-		}
-		break;
-	case CKM_RSA_X_509:
-	case CKM_RSA_PKCS:
-	case CKM_AES_ECB:
-		mech.pParameter = NULL;
-		mech.ulParameterLen = 0;
-		break;
-	case CKM_AES_CBC:
-	case CKM_AES_CBC_PAD:
-		iv_size = 16;
-		iv = get_iv(opt_iv, &iv_size);
-		mech.pParameter = iv;
-		mech.ulParameterLen = iv_size;
-		break;
-	default:
-		util_fatal("Mechanism %s illegal or not supported\n", p11_mechanism_to_name(opt_mechanism));
-	}
+	if (opt_mechanism != CKM_RSA_PKCS)
+		util_fatal("Not PKCS#1");
 
 
-	/* If an RSA-OAEP mechanism, it needs parameters */
-	if (oaep_params.hashAlg) {
-		if (opt_mgf != 0)
-			oaep_params.mgf = opt_mgf;
-
-		/* These settings are compatible with OpenSSL 1.0.2L and 1.1.0+ */
-		oaep_params.source = 0UL;  /* empty encoding parameter (label) */
-		oaep_params.pSourceData = NULL; /* PKCS#11 standard: this must be NULLPTR */
-		oaep_params.ulSourceDataLen = 0; /* PKCS#11 standard: this must be 0 */
-
-		mech.pParameter = &oaep_params;
-		mech.ulParameterLen = sizeof(oaep_params);
-
-		fprintf(stderr, "OAEP parameters: hashAlg=%s, mgf=%s, source_type=%lu, source_ptr=%p, source_len=%lu\n",
-			p11_mechanism_to_name(oaep_params.hashAlg),
-			p11_mgf_to_name(oaep_params.mgf),
-			oaep_params.source,
-			oaep_params.pSourceData,
-			oaep_params.ulSourceDataLen);
-
-	}
-
+	/* Open files */
 	if (opt_input == NULL)
-		fd_in = 0;
-	else if ((fd_in = open(opt_input, O_RDONLY | O_BINARY)) < 0)
+		util_fatal("No input file");
+	else if ((fd_in = open(opt_input, O_RDONLY)) < 0)
 		util_fatal("Cannot open %s: %m", opt_input);
 
 	if (opt_output == NULL) {
-		fd_out = 1;
+		util_fatal("No output file");
 	} else {
-		fd_out = open(opt_output, O_CREAT | O_TRUNC | O_WRONLY | O_BINARY, S_IRUSR | S_IWUSR);
+		fd_out = open(opt_output, O_WRONLY|O_TRUNC|O_CREAT, 0666);
 		if (fd_out < 0)
 			util_fatal("failed to open %s: %m", opt_output);
 	}
 
-	r = read(fd_in, in_buffer, sizeof(in_buffer));
-	in_len = r;
+	/* Prepare buffers */
+	fprintf(stderr, "malloc(plaintext)\n");
+	out_buffer = malloc(in_len);
+	if (!out_buffer)
+		util_fatal("Plaintext allocation failure");
 
-	if (r < 0)
-		util_fatal("Cannot read from %s: %m", opt_input);
+	fprintf(stderr, "malloc(ciphertext)\n");
+	in_buffer = malloc(out_len);
+	if (!in_buffer)
+		util_fatal("Ciphertext allocation failure");
 
-	rv = CKR_CANCEL;
-	if (r < (int) sizeof(in_buffer)) {
-		out_len = sizeof(out_buffer);
+	fprintf(stderr, "Decrypting...\n");
+	int round = 0;
+
+	uint64_t time_before, time_after, time_diff;
+	while ((r = read(fd_in, in_buffer, in_len)) > 0) {
+		if ((CK_ULONG) r != in_len) {
+			fprintf(stderr, "read less data than expected (truncated file?)\n");
+			goto err;
+		}
+		round++;
+		fprintf(stderr, "Round: %d\n", round);
+
+		out_len = in_len;
 		rv = p11->C_DecryptInit(session, &mech, key);
 		if (rv != CKR_OK)
 			p11_fatal("C_DecryptInit", rv);
 		if ((getCLASS(session, key) == CKO_PRIVATE_KEY) && getALWAYS_AUTHENTICATE(session, key))
 			login(session, CKU_CONTEXT_SPECIFIC);
-		rv = p11->C_Decrypt(session, in_buffer, in_len, out_buffer, &out_len);
+
+		time_before = get_time_before();
+		p11->C_Decrypt(session, in_buffer, in_len, out_buffer, &out_len);
+
+		time_after = get_time_after();
+		time_diff = time_after - time_before;
+
+		r = write(fd_out, &time_diff, sizeof(time_diff));
+		if (r <= 0) {
+			fprintf(stderr, "Write error\n");
+			goto err;
+		}
 	}
-	if (rv != CKR_OK) {
-		rv = p11->C_DecryptInit(session, &mech, key);
-		if (rv != CKR_OK)
-			p11_fatal("C_DecryptInit", rv);
-		if ((getCLASS(session, key) == CKO_PRIVATE_KEY) && getALWAYS_AUTHENTICATE(session, key))
-			login(session, CKU_CONTEXT_SPECIFIC);
-		do {
-			out_len = sizeof(out_buffer);
-			rv = p11->C_DecryptUpdate(session, in_buffer, in_len, out_buffer, &out_len);
-			if (rv != CKR_OK)
-				p11_fatal("C_DecryptUpdate", rv);
-			r = write(fd_out, out_buffer, out_len);
-			if (r != (int) out_len)
-				util_fatal("Cannot write to %s: %m", opt_output);
-			r = read(fd_in, in_buffer, sizeof(in_buffer));
-			in_len = r;
-		} while (r > 0);
-		out_len = sizeof(out_buffer);
-		rv = p11->C_DecryptFinal(session, out_buffer, &out_len);
-		if (rv != CKR_OK)
-			p11_fatal("C_DecryptFinal", rv);
-	}
-	if (out_len) {
-		r = write(fd_out, out_buffer, out_len);
-		if (r != (int) out_len)
-			util_fatal("Cannot write to %s: %m", opt_output);
-	}
+
+	fprintf(stderr, "Measuring finished\n");
+
+err:
 	if (fd_in != 0)
 		close(fd_in);
 	if (fd_out != 1)
 		close(fd_out);
-
-	free(iv);
 }
+
 
 static void encrypt_data(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 		CK_OBJECT_HANDLE key)
