@@ -1034,7 +1034,8 @@ C_Decrypt(CK_SESSION_HANDLE hSession,	     /* the session's handle */
 		rv = reset_login_state(session->slot, rv);
 	}
 
-	SC_LOG_RV("C_Decrypt() = %s", rv);
+	/* do not log error code to prevent side channel attack */
+	SC_LOG("C_Decrypt()");
 	sc_pkcs11_unlock();
 	return rv;
 }
