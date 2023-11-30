@@ -147,8 +147,8 @@ static int use_key(struct sc_pkcs15_card *p15card,
 						"Unable to select private key file");
 			}
 		}
-		if (r == SC_SUCCESS)
-			r = sc_set_security_env(p15card->card, senv, 0);
+		//if (r == SC_SUCCESS)
+		//	r = sc_set_security_env(p15card->card, senv, 0);
 
 		if (r == SC_SUCCESS)
 			r = card_command(p15card->card, in, inlen, out, outlen);
@@ -302,7 +302,7 @@ int sc_pkcs15_decipher(struct sc_pkcs15_card *p15card,
 	LOG_TEST_RET(ctx, r, "cannot encode security operation flags");
 	senv.algorithm_flags = sec_flags;
 
-	r = use_key(p15card, obj, &senv, sc_decipher, in, inlen, out,
+	r = use_key(p15card, obj, &senv, sc_copy, in, inlen, out,
 			outlen);
 	LOG_TEST_RET(ctx, r, "use_key() failed");
 
