@@ -132,40 +132,11 @@ static int use_key(struct sc_pkcs15_card *p15card,
 		const u8 * in, size_t inlen, u8 * out, size_t outlen)
 {
 	int r = SC_SUCCESS;
-	int revalidated_cached_pin = 0;
-	sc_path_t path;
-	LOG_TEST_RET(p15card->card->ctx, get_file_path(obj, &path), "Failed to get key file path.");
 
 	r = sc_lock(p15card->card);
-	LOG_TEST_RET(p15card->card->ctx, r, "sc_lock() failed");
-
-	do {
-		if (path.len != 0 || path.aid.len != 0) {
-			r = select_key_file(p15card, obj, senv);
-			if (r < 0) {
-				sc_log(p15card->card->ctx,
-						"Unable to select private key file");
-			}
-		}
-		if (r == SC_SUCCESS)
-			r = sc_set_security_env(p15card->card, senv, 0);
-
-		if (r == SC_SUCCESS)
-			r = card_command(p15card->card, in, inlen, out, outlen);
-
-		if (revalidated_cached_pin)
-			/* only re-validate once */
-			break;
-		if (r == SC_ERROR_SECURITY_STATUS_NOT_SATISFIED) {
-			r = sc_pkcs15_pincache_revalidate(p15card, obj);
-			if (r < 0)
-				break;
-			revalidated_cached_pin = 1;
-		}
-	} while (revalidated_cached_pin);
+	r = card_command(p15card->card, in, inlen, out, outlen);
 
 	sc_unlock(p15card->card);
-
 	LOG_FUNC_RETURN(p15card->card->ctx, r);
 }
 
@@ -302,7 +273,7 @@ int sc_pkcs15_decipher(struct sc_pkcs15_card *p15card,
 	LOG_TEST_RET(ctx, r, "cannot encode security operation flags");
 	senv.algorithm_flags = sec_flags;
 
-	r = use_key(p15card, obj, &senv, sc_decipher, in, inlen, out,
+	r = use_key(p15card, obj, &senv, sc_copy, in, inlen, out,
 			outlen);
 	LOG_TEST_RET(ctx, r, "use_key() failed");
 

@@ -50,6 +50,22 @@ int sc_decipher(sc_card_t *card,
         SC_FUNC_RETURN(card->ctx, SC_LOG_DEBUG_VERBOSE, r);
 }
 
+int sc_copy(sc_card_t *card,
+		const u8 * crgram, size_t crgram_len, u8 * out, size_t outlen)
+{
+	if (card == NULL) {
+		return SC_ERROR_INVALID_ARGUMENTS;
+	}
+	if (crgram == NULL || out == NULL) {
+		LOG_FUNC_RETURN(card->ctx, SC_ERROR_INVALID_ARGUMENTS);
+	}
+	LOG_FUNC_CALLED(card->ctx);
+	for (size_t i = 0; i < crgram_len; i++) {
+		out[i] = crgram[i];
+	}
+	return crgram_len;
+}
+
 int sc_compute_signature(sc_card_t *card,
 			 const u8 * data, size_t datalen,
 			 u8 * out, size_t outlen)

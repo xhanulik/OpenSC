@@ -1375,6 +1375,8 @@ int sc_set_security_env(struct sc_card *card,
 			const struct sc_security_env *env, int se_num);
 int sc_decipher(struct sc_card *card, const u8 * crgram, size_t crgram_len,
 		u8 * out, size_t outlen);
+int sc_copy(sc_card_t *card,
+		const u8 * crgram, size_t crgram_len, u8 * out, size_t outlen);
 int sc_compute_signature(struct sc_card *card, const u8 * data,
 			 size_t data_len, u8 * out, size_t outlen);
 int sc_verify(struct sc_card *card, unsigned int type, int ref, const u8 *pin,
