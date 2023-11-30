@@ -105,7 +105,7 @@ static int sc_pkcs1_add_01_padding(const u8 *in, size_t in_len,
 	memmove(out + i, in, in_len);
 	*out++ = 0x00;
 	*out++ = 0x01;
-	
+
 	memset(out, 0xFF, i - 3);
 	out += i - 3;
 	*out = 0x00;
@@ -192,7 +192,7 @@ int
 sc_pkcs1_strip_02_padding_constant_time(sc_context_t *ctx, unsigned int n, const u8 *data, unsigned int data_len, u8 *out, unsigned int *out_len)
 {
 	unsigned int i = 0;
-	u8 *msg = NULL;
+	u8 *msg, *msg_orig = NULL;
 	unsigned int good, found_zero_byte, mask;
 	unsigned int zero_index = 0, msg_index, mlen = -1, len = 0;
 	LOG_FUNC_CALLED(ctx);
@@ -200,7 +200,7 @@ sc_pkcs1_strip_02_padding_constant_time(sc_context_t *ctx, unsigned int n, const
 	if (data == NULL || data_len <= 0 || data_len > n || n < SC_PKCS1_PADDING_MIN_SIZE)
 		LOG_FUNC_RETURN(ctx, SC_ERROR_INTERNAL);
 
-	msg = calloc(n, sizeof(u8));
+	msg = msg_orig = calloc(n, sizeof(u8));
 	if (msg == NULL)
 		LOG_FUNC_RETURN(ctx, SC_ERROR_INTERNAL);
 
@@ -261,7 +261,7 @@ sc_pkcs1_strip_02_padding_constant_time(sc_context_t *ctx, unsigned int n, const
 		out[i] = constant_time_select_8(mask, msg[msg_index], out[i]);
 	}
 
-	free(msg);
+	free(msg_orig);
 	return constant_time_select(good, mlen, SC_ERROR_WRONG_PADDING);
 }
 
@@ -443,7 +443,7 @@ int sc_pkcs1_strip_digest_info_prefix(unsigned int *algorithm,
 		size_t    hdr_len  = digest_info_prefix[i].hdr_len,
 		          hash_len = digest_info_prefix[i].hash_len;
 		const u8 *hdr      = digest_info_prefix[i].hdr;
-		
+
 		if (in_len == (hdr_len + hash_len) &&
 		    !memcmp(in_dat, hdr, hdr_len)) {
 			if (algorithm)
