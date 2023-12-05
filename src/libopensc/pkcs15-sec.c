@@ -140,15 +140,15 @@ static int use_key(struct sc_pkcs15_card *p15card,
 	LOG_TEST_RET(p15card->card->ctx, r, "sc_lock() failed");
 
 	do {
-		if (path.len != 0 || path.aid.len != 0) {
+		/*if (path.len != 0 || path.aid.len != 0) {
 			r = select_key_file(p15card, obj, senv);
 			if (r < 0) {
 				sc_log(p15card->card->ctx,
 						"Unable to select private key file");
 			}
 		}
-		//if (r == SC_SUCCESS)
-		//	r = sc_set_security_env(p15card->card, senv, 0);
+		if (r == SC_SUCCESS)
+			r = sc_set_security_env(p15card->card, senv, 0);*/
 
 		if (r == SC_SUCCESS)
 			r = card_command(p15card->card, in, inlen, out, outlen);
