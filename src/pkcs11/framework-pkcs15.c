@@ -4604,7 +4604,8 @@ pkcs15_prkey_decrypt(struct sc_pkcs11_session *session, void *obj,
 	rv = sc_pkcs15_decipher(fw_data->p15_card, prkey->prv_p15obj, flags,
 			pEncryptedData, ulEncryptedDataLen, decrypted, sizeof(decrypted), pMechanism);
 
-	if (!((flags & SC_ALGORITHM_RSA_PAD_PKCS1) && constant_time_eq_s(rv, SC_ERROR_WRONG_PADDING)) &&
+	/* skip for PKCS#1 v1.5 padding prevent side channel attack */
+	if (!(flags & SC_ALGORITHM_RSA_PAD_PKCS1) &&
 			rv < 0 && !sc_pkcs11_conf.lock_login && !prkey_has_path)
 		if (reselect_app_df(fw_data->p15_card) == SC_SUCCESS)
 			rv = sc_pkcs15_decipher(fw_data->p15_card, prkey->prv_p15obj, flags,
