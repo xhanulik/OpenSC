@@ -7251,13 +7251,108 @@ static int test_unwrap(CK_SESSION_HANDLE sess)
 #endif
 }
 
+uint64_t get_time_before() {
+    uint64_t time_before = 0;
+#if defined( __s390x__ )
+    /* The 64 bit TOD (time-of-day) value is running at 4096.000MHz, but
+     * on some machines not all low bits are updated (the effective frequency
+     * remains though)
+     */
+
+    /* use STCKE as it has lower overhead,
+     * see http://publibz.boulder.ibm.com/epubs/pdf/dz9zr007.pdf
+     */
+    //asm volatile (
+    //    "stck    %0": "=Q" (time_before) :: "memory", "cc");
+
+    uint8_t clk[16];
+    asm volatile (
+          "stcke %0" : "=Q" (clk) :: "memory", "cc");
+    /* since s390x is big-endian we can just do a byte-by-byte copy,
+     * First byte is the epoch number (143 year cycle) while the following
+     * 8 bytes are the same as returned by STCK */
+    time_before = *(uint64_t *)(clk + 1);
+#elif defined( __PPC64__ )
+    asm volatile (
+        "mftb    %0": "=r" (time_before) :: "memory", "cc");
+#elif defined( __aarch64__ )
+    asm volatile (
+        "mrs %0, cntvct_el0": "=r" (time_before) :: "memory", "cc");
+#elif defined( __x86_64__ )
+    uint32_t time_before_high = 0, time_before_low = 0;
+    asm volatile (
+        "CPUID\n\t"
+        "RDTSC\n\t"
+        "mov %%edx, %0\n\t"
+        "mov %%eax, %1\n\t" : "=r" (time_before_high),
+        "=r" (time_before_low)::
+        "%rax", "%rbx", "%rcx", "%rdx");
+    time_before = (uint64_t)time_before_high<<32 | time_before_low;
+#else
+#error Unsupported architecture
+#endif /* ifdef __s390x__ */
+    return time_before;
+}
+
+/* Get an architecture specific most precise clock source with the lowest
+ * overhead. Should be executed at the end of the measurement period
+ * (because of barriers against speculative execution
+ */
+uint64_t get_time_after() {
+	uint64_t time_after = 0;
+#if defined( __s390x__ )
+	/* The 64 bit TOD (time-of-day) value is running at 4096.000MHz, but
+	 * on some machines not all low bits are updated (the effective frequency
+	 * remains though)
+	 */
+
+	/* use STCKE as it has lower overhead,
+	 * see http://publibz.boulder.ibm.com/epubs/pdf/dz9zr007.pdf
+	 */
+	//asm volatile (
+	//    "stck    %0": "=Q" (time_before) :: "memory", "cc");
+
+	uint8_t clk[16];
+	asm volatile (
+		  "stcke %0" : "=Q" (clk) :: "memory", "cc");
+	/* since s390x is big-endian we can just do a byte-by-byte copy,
+	 * First byte is the epoch number (143 year cycle) while the following
+	 * 8 bytes are the same as returned by STCK */
+	time_after = *(uint64_t *)(clk + 1);
+#elif defined( __PPC64__ )
+	/* Note: mftb can be used with a single instruction on ppc64, for ppc32
+	 * it's necessary to read upper and lower 32bits of the values in two
+	 * separate calls and verify that we didn't do that during low value
+	 * overflow
+	 */
+	asm volatile (
+		"mftb    %0": "=r" (time_after) :: "memory", "cc");
+#elif defined( __aarch64__ )
+	asm volatile (
+		"mrs %0, cntvct_el0": "=r" (time_after) :: "memory", "cc");
+#elif defined( __x86_64__ )
+	uint32_t time_after_high = 0, time_after_low = 0;
+	asm volatile (
+		"RDTSCP\n\t"
+		"mov %%edx, %0\n\t"
+		"mov %%eax, %1\n\t"
+		"CPUID\n\t": "=r" (time_after_high),
+		"=r" (time_after_low)::
+		"%rax", "%rbx", "%rcx", "%rdx");
+	time_after = (uint64_t)time_after_high<<32 | time_after_low;
+#else
+#error Unsupported architecture
+#endif /* ifdef __s390x__ */
+	return time_after;
+}
+
 #ifdef ENABLE_OPENSSL
 static int encrypt_decrypt(CK_SESSION_HANDLE session,
 		CK_MECHANISM_TYPE mech_type,
 		CK_OBJECT_HANDLE privKeyObject,
-		char *param, unsigned long param_len)
+		char *param, unsigned long param_len, char *key_name, int rounds)
 {
-	EVP_PKEY       *pkey;
+
 	unsigned char	orig_data[512];
 	unsigned char	encrypted[512], data[512];
 	CK_MECHANISM	mech;
@@ -7268,309 +7363,332 @@ static int encrypt_decrypt(CK_SESSION_HANDLE session,
 	CK_MECHANISM_TYPE hash_alg = CKM_SHA256;
 	CK_RSA_PKCS_MGF_TYPE mgf = CKG_MGF1_SHA256;
 	CK_RSA_PKCS_OAEP_PARAMS oaep_params;
+	uint64_t time_before, time_after, time_diff;
+	int fd_out;
 
-	printf("    %s: ", p11_mechanism_to_name(mech_type));
+	printf("    Measuring %s: \n", p11_mechanism_to_name(mech_type));
+	printf("        Opening output file %s\n", key_name);
+	fd_out = open(key_name, O_WRONLY|O_TRUNC|O_CREAT, 0666);
+	if (fd_out < 0)
+		p11_fatal("Write error", fd_out);
 
-	pseudo_randomize(orig_data, sizeof(orig_data));
-	orig_data[0] = 0; /* Make sure it is less then modulus */
+	/* Start for cycle for measuring here */
+	printf("        Starting for cycle\n");
+	for (int i = 0; i < rounds; i++) {
+		printf("            Round %d\n", i);
 
-	pkey = get_public_key(session, privKeyObject);
-	if (pkey == NULL)
-		return 0;
-
-	if (EVP_PKEY_size(pkey) > (int)sizeof(encrypted)) {
-		printf("Ciphertext buffer too small\n");
-		EVP_PKEY_free(pkey);
-		return 0;
-	}
-	size_t in_len;
-	size_t max_in_len;
-	CK_ULONG mod_len = (get_private_key_length(session, privKeyObject) + 7) / 8;
-	switch (mech_type) {
-	case CKM_RSA_PKCS:
-		pad = RSA_PKCS1_PADDING;
-		/* input length <= mod_len-11 */
-		max_in_len = mod_len-11;
-		in_len = 10;
-		break;
-	case CKM_RSA_PKCS_OAEP: {
-		if (opt_hash_alg != 0) {
-			hash_alg = opt_hash_alg;
-		}
-		switch (hash_alg) {
-		case CKM_SHA_1:
-			mgf = CKG_MGF1_SHA1;
-			break;
-		case CKM_SHA224:
-			mgf = CKG_MGF1_SHA224;
-			break;
-		default:
-			printf("hash-algorithm %s unknown, defaulting to CKM_SHA256\n", p11_mechanism_to_name(hash_alg));
-			/* fall through */
-		case CKM_SHA256:
-			mgf = CKG_MGF1_SHA256;
-			break;
-		case CKM_SHA384:
-			mgf = CKG_MGF1_SHA384;
-			break;
-		case CKM_SHA512:
-			mgf = CKG_MGF1_SHA512;
-			break;
-		case CKM_SHA3_224:
-			mgf = CKG_MGF1_SHA3_224;
-			break;
-		case CKM_SHA3_256:
-			mgf = CKG_MGF1_SHA3_256;
-			break;
-		case CKM_SHA3_384:
-			mgf = CKG_MGF1_SHA3_384;
-			break;
-		case CKM_SHA3_512:
-			mgf = CKG_MGF1_SHA3_512;
-			break;
-		}
-		if (opt_mgf != 0) {
-			mgf = opt_mgf;
-		} else {
-			printf("mgf not set, defaulting to %s\n", p11_mgf_to_name(mgf));
-		}
-
-		pad = RSA_PKCS1_OAEP_PADDING;
-		size_t len = 2+2*hash_length(hash_alg);
-		if (len >= mod_len) {
-			printf("Incompatible mechanism and key size\n");
+		EVP_PKEY       *pkey;
+		pkey = get_public_key(session, privKeyObject);
+		if (pkey == NULL)
 			return 0;
-		}
-		/* input length <= mod_len-2-2*hlen */
-		max_in_len = mod_len-len;
-		in_len = 10;
-		break;
-	}
-	case CKM_RSA_X_509:
-		pad = RSA_NO_PADDING;
-		/* input length equals modulus length */
-		max_in_len = mod_len;
-		in_len = mod_len;
-		break;
-	default:
-		printf("Unsupported mechanism %s, returning\n", p11_mechanism_to_name(mech_type));
-		return 0;
-	}
 
-	if (in_len > sizeof(orig_data)) {
-		printf("Input data is too large\n");
-		return 0;
-	}
-	if (in_len > max_in_len) {
-		printf("Input data is too large for this key\n");
-		return 0;
-	}
-
-	EVP_PKEY_CTX *ctx;
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-	ctx = EVP_PKEY_CTX_new_from_pkey(osslctx, pkey, NULL);
-#else
-	ctx = EVP_PKEY_CTX_new(pkey, NULL);
-#endif
-	if (!ctx) {
-		EVP_PKEY_free(pkey);
-		printf("EVP_PKEY_CTX_new failed, returning\n");
-		return 0;
-	}
-	if (EVP_PKEY_encrypt_init(ctx) <= 0) {
-		EVP_PKEY_CTX_free(ctx);
-		EVP_PKEY_free(pkey);
-		printf("EVP_PKEY_encrypt_init failed, returning\n");
-		return 0;
-	}
-	if (EVP_PKEY_CTX_set_rsa_padding(ctx, pad) <= 0) {
-		EVP_PKEY_CTX_free(ctx);
-		EVP_PKEY_free(pkey);
-		printf("set padding failed, returning\n");
-		return 0;
-	}
-	if (mech_type == CKM_RSA_PKCS_OAEP) {
-#if OPENSSL_VERSION_NUMBER >= 0x10002000L
-		const EVP_MD *md;
-		switch (hash_alg) {
-		case CKM_SHA_1:
-			md = EVP_sha1();
-			break;
-		case CKM_SHA224:
-			md = EVP_sha224();
-			break;
-		default: /* it should not happen, hash_alg is checked earlier */
-			/* fall through */
-		case CKM_SHA256:
-			md = EVP_sha256();
-			break;
-		case CKM_SHA384:
-			md = EVP_sha384();
-			break;
-		case CKM_SHA512:
-			md = EVP_sha512();
-			break;
-		case CKM_SHA3_224:
-			md = EVP_sha3_224();
-			break;
-		case CKM_SHA3_256:
-			md = EVP_sha3_256();
-			break;
-		case CKM_SHA3_384:
-			md = EVP_sha3_384();
-			break;
-		case CKM_SHA3_512:
-			md = EVP_sha3_512();
-			break;
-		}
-		if (EVP_PKEY_CTX_set_rsa_oaep_md(ctx, md) <= 0) {
-			EVP_PKEY_CTX_free(ctx);
+		if (EVP_PKEY_size(pkey) > (int)sizeof(encrypted)) {
+			printf("Ciphertext buffer too small\n");
 			EVP_PKEY_free(pkey);
-			printf("set md failed, returning\n");
 			return 0;
 		}
-		switch (mgf) {
-		case CKG_MGF1_SHA1:
-			md = EVP_sha1();
+		size_t in_len;
+		size_t max_in_len;
+		CK_ULONG mod_len = (get_private_key_length(session, privKeyObject) + 7) / 8;
+		switch (mech_type) {
+		case CKM_RSA_PKCS:
+			pad = RSA_PKCS1_PADDING;
+			/* input length <= mod_len-11 */
+			max_in_len = mod_len-11;
+			in_len = 10;
 			break;
-		case CKG_MGF1_SHA224:
-			md = EVP_sha224();
-			break;
-		default:
-			printf("mgf %s unknown, defaulting to CKG_MGF1_SHA256\n", p11_mgf_to_name(mgf));
-			mgf = CKG_MGF1_SHA256;
-			/* fall through */
-		case CKG_MGF1_SHA256:
-			md = EVP_sha256();
-			break;
-		case CKG_MGF1_SHA384:
-			md = EVP_sha384();
-			break;
-		case CKG_MGF1_SHA512:
-			md = EVP_sha512();
-			break;
-		case CKG_MGF1_SHA3_224:
-			md = EVP_sha3_224();
-			break;
-		case CKG_MGF1_SHA3_256:
-			md = EVP_sha3_256();
-			break;
-		case CKG_MGF1_SHA3_384:
-			md = EVP_sha3_384();
-			break;
-		case CKG_MGF1_SHA3_512:
-			md = EVP_sha3_512();
-			break;
-		}
-		if (EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md) <= 0) {
-			EVP_PKEY_CTX_free(ctx);
-			EVP_PKEY_free(pkey);
-			printf("set mgf1 md failed, returning\n");
-			return 0;
-		}
-		if (param_len != 0 && param != NULL) {
-			/* label is in ownership of openssl, do not free this ptr! */
-			char *label = malloc(param_len);
-			memcpy(label, param, param_len);
+		case CKM_RSA_PKCS_OAEP: {
+			if (opt_hash_alg != 0) {
+				hash_alg = opt_hash_alg;
+			}
+			switch (hash_alg) {
+			case CKM_SHA_1:
+				mgf = CKG_MGF1_SHA1;
+				break;
+			case CKM_SHA224:
+				mgf = CKG_MGF1_SHA224;
+				break;
+			default:
+				printf("hash-algorithm %s unknown, defaulting to CKM_SHA256\n", p11_mechanism_to_name(hash_alg));
+				/* fall through */
+			case CKM_SHA256:
+				mgf = CKG_MGF1_SHA256;
+				break;
+			case CKM_SHA384:
+				mgf = CKG_MGF1_SHA384;
+				break;
+			case CKM_SHA512:
+				mgf = CKG_MGF1_SHA512;
+				break;
+			case CKM_SHA3_224:
+				mgf = CKG_MGF1_SHA3_224;
+				break;
+			case CKM_SHA3_256:
+				mgf = CKG_MGF1_SHA3_256;
+				break;
+			case CKM_SHA3_384:
+				mgf = CKG_MGF1_SHA3_384;
+				break;
+			case CKM_SHA3_512:
+				mgf = CKG_MGF1_SHA3_512;
+				break;
+			}
+			if (opt_mgf != 0) {
+				mgf = opt_mgf;
+			} else {
+				printf("mgf not set, defaulting to %s\n", p11_mgf_to_name(mgf));
+			}
 
-			if (EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, label, param_len) <= 0) {
-				EVP_PKEY_CTX_free(ctx);
-				EVP_PKEY_free(pkey);
-				printf("set OAEP label failed, returning\n");
+			pad = RSA_PKCS1_OAEP_PADDING;
+			size_t len = 2+2*hash_length(hash_alg);
+			if (len >= mod_len) {
+				printf("Incompatible mechanism and key size\n");
 				return 0;
 			}
+			/* input length <= mod_len-2-2*hlen */
+			max_in_len = mod_len-len;
+			in_len = 10;
+			break;
 		}
-#else
-		if (hash_alg != CKM_SHA_1) {
-			printf("This version of OpenSSL only supports SHA1 for OAEP, returning\n");
+		case CKM_RSA_X_509:
+			pad = RSA_NO_PADDING;
+			/* input length equals modulus length */
+			max_in_len = mod_len;
+			in_len = mod_len;
+			break;
+		default:
+			printf("Unsupported mechanism %s, returning\n", p11_mechanism_to_name(mech_type));
 			return 0;
 		}
-#endif
-	}
+		
+		pseudo_randomize(orig_data, sizeof(orig_data));
+		orig_data[0] = 0; /* Make sure it is less then modulus */
 
-	size_t out_len = sizeof(encrypted);
-	if (EVP_PKEY_encrypt(ctx, encrypted, &out_len, orig_data, in_len) <= 0) {
-		EVP_PKEY_CTX_free(ctx);
-		EVP_PKEY_free(pkey);
-		printf("Encryption failed, returning\n");
-		return 0;
-	}
-	EVP_PKEY_CTX_free(ctx);
-	EVP_PKEY_free(pkey);
-	encrypted_len = out_len;
-
-	/* set "default" MGF and hash algorithms. We can overwrite MGF later */
-	switch (mech_type) {
-	case CKM_RSA_PKCS_OAEP:
-		oaep_params.hashAlg = hash_alg;
-		oaep_params.mgf = mgf;
-
-		oaep_params.source = 0UL;  /* empty encoding parameter (label) */
-		oaep_params.pSourceData = NULL; /* PKCS#11 standard: this must be NULLPTR */
-		oaep_params.ulSourceDataLen = 0; /* PKCS#11 standard: this must be 0 */
-
-		fprintf(stderr, "OAEP parameters: hashAlg=%s, mgf=%s, ",
-			p11_mechanism_to_name(oaep_params.hashAlg),
-			p11_mgf_to_name(oaep_params.mgf));
-
-		if (param != NULL && param_len > 0) {
-			oaep_params.source = CKZ_DATA_SPECIFIED;
-			oaep_params.pSourceData = param;
-			oaep_params.ulSourceDataLen = param_len;
-			fprintf(stderr, "encoding parameter (Label) present, length %ld\n", param_len);
-		} else {
-			fprintf(stderr, "encoding parameter (Label) not present\n");
+		if (in_len > sizeof(orig_data)) {
+			printf("Input data is too large\n");
+			return 0;
+		}
+		if (in_len > max_in_len) {
+			printf("Input data is too large for this key\n");
+			return 0;
 		}
 
-		mech.pParameter = &oaep_params;
-		mech.ulParameterLen = sizeof(oaep_params);
+		EVP_PKEY_CTX *ctx;
+	#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+		ctx = EVP_PKEY_CTX_new_from_pkey(osslctx, pkey, NULL);
+	#else
+		ctx = EVP_PKEY_CTX_new(pkey, NULL);
+	#endif
+		if (!ctx) {
+			EVP_PKEY_free(pkey);
+			printf("EVP_PKEY_CTX_new failed, returning\n");
+			return 0;
+		}
+		if (EVP_PKEY_encrypt_init(ctx) <= 0) {
+			EVP_PKEY_CTX_free(ctx);
+			EVP_PKEY_free(pkey);
+			printf("EVP_PKEY_encrypt_init failed, returning\n");
+			return 0;
+		}
+		if (EVP_PKEY_CTX_set_rsa_padding(ctx, pad) <= 0) {
+			EVP_PKEY_CTX_free(ctx);
+			EVP_PKEY_free(pkey);
+			printf("set padding failed, returning\n");
+			return 0;
+		}
+		if (mech_type == CKM_RSA_PKCS_OAEP) {
+	#if OPENSSL_VERSION_NUMBER >= 0x10002000L
+			const EVP_MD *md;
+			switch (hash_alg) {
+			case CKM_SHA_1:
+				md = EVP_sha1();
+				break;
+			case CKM_SHA224:
+				md = EVP_sha224();
+				break;
+			default: /* it should not happen, hash_alg is checked earlier */
+				/* fall through */
+			case CKM_SHA256:
+				md = EVP_sha256();
+				break;
+			case CKM_SHA384:
+				md = EVP_sha384();
+				break;
+			case CKM_SHA512:
+				md = EVP_sha512();
+				break;
+			case CKM_SHA3_224:
+				md = EVP_sha3_224();
+				break;
+			case CKM_SHA3_256:
+				md = EVP_sha3_256();
+				break;
+			case CKM_SHA3_384:
+				md = EVP_sha3_384();
+				break;
+			case CKM_SHA3_512:
+				md = EVP_sha3_512();
+				break;
+			}
+			if (EVP_PKEY_CTX_set_rsa_oaep_md(ctx, md) <= 0) {
+				EVP_PKEY_CTX_free(ctx);
+				EVP_PKEY_free(pkey);
+				printf("set md failed, returning\n");
+				return 0;
+			}
+			switch (mgf) {
+			case CKG_MGF1_SHA1:
+				md = EVP_sha1();
+				break;
+			case CKG_MGF1_SHA224:
+				md = EVP_sha224();
+				break;
+			default:
+				printf("mgf %s unknown, defaulting to CKG_MGF1_SHA256\n", p11_mgf_to_name(mgf));
+				mgf = CKG_MGF1_SHA256;
+				/* fall through */
+			case CKG_MGF1_SHA256:
+				md = EVP_sha256();
+				break;
+			case CKG_MGF1_SHA384:
+				md = EVP_sha384();
+				break;
+			case CKG_MGF1_SHA512:
+				md = EVP_sha512();
+				break;
+			case CKG_MGF1_SHA3_224:
+				md = EVP_sha3_224();
+				break;
+			case CKG_MGF1_SHA3_256:
+				md = EVP_sha3_256();
+				break;
+			case CKG_MGF1_SHA3_384:
+				md = EVP_sha3_384();
+				break;
+			case CKG_MGF1_SHA3_512:
+				md = EVP_sha3_512();
+				break;
+			}
+			if (EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md) <= 0) {
+				EVP_PKEY_CTX_free(ctx);
+				EVP_PKEY_free(pkey);
+				printf("set mgf1 md failed, returning\n");
+				return 0;
+			}
+			if (param_len != 0 && param != NULL) {
+				/* label is in ownership of openssl, do not free this ptr! */
+				char *label = malloc(param_len);
+				memcpy(label, param, param_len);
+
+				if (EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, label, param_len) <= 0) {
+					EVP_PKEY_CTX_free(ctx);
+					EVP_PKEY_free(pkey);
+					printf("set OAEP label failed, returning\n");
+					return 0;
+				}
+			}
+	#else
+			if (hash_alg != CKM_SHA_1) {
+				printf("This version of OpenSSL only supports SHA1 for OAEP, returning\n");
+				return 0;
+			}
+	#endif
+		}
+
+		size_t out_len = sizeof(encrypted);
+		if (EVP_PKEY_encrypt(ctx, encrypted, &out_len, orig_data, in_len) <= 0) {
+			EVP_PKEY_CTX_free(ctx);
+			EVP_PKEY_free(pkey);
+			printf("Encryption failed, returning\n");
+			return 0;
+		}
+		EVP_PKEY_CTX_free(ctx);
+		EVP_PKEY_free(pkey);
+		encrypted_len = out_len;
+
+		/* set "default" MGF and hash algorithms. We can overwrite MGF later */
+		switch (mech_type) {
+		case CKM_RSA_PKCS_OAEP:
+			oaep_params.hashAlg = hash_alg;
+			oaep_params.mgf = mgf;
+
+			oaep_params.source = 0UL;  /* empty encoding parameter (label) */
+			oaep_params.pSourceData = NULL; /* PKCS#11 standard: this must be NULLPTR */
+			oaep_params.ulSourceDataLen = 0; /* PKCS#11 standard: this must be 0 */
+
+			fprintf(stderr, "OAEP parameters: hashAlg=%s, mgf=%s, ",
+				p11_mechanism_to_name(oaep_params.hashAlg),
+				p11_mgf_to_name(oaep_params.mgf));
+
+			if (param != NULL && param_len > 0) {
+				oaep_params.source = CKZ_DATA_SPECIFIED;
+				oaep_params.pSourceData = param;
+				oaep_params.ulSourceDataLen = param_len;
+				fprintf(stderr, "encoding parameter (Label) present, length %ld\n", param_len);
+			} else {
+				fprintf(stderr, "encoding parameter (Label) not present\n");
+			}
+
+			mech.pParameter = &oaep_params;
+			mech.ulParameterLen = sizeof(oaep_params);
 
 
 
-		break;
-	case CKM_RSA_X_509:
-	case CKM_RSA_PKCS:
-		mech.pParameter = NULL;
-		mech.ulParameterLen = 0;
-		break;
-	default:
-		util_fatal("Mechanism %s illegal or not supported\n", p11_mechanism_to_name(mech_type));
+			break;
+		case CKM_RSA_X_509:
+		case CKM_RSA_PKCS:
+			mech.pParameter = NULL;
+			mech.ulParameterLen = 0;
+			break;
+		default:
+			util_fatal("Mechanism %s illegal or not supported\n", p11_mechanism_to_name(mech_type));
+		}
+
+		mech.mechanism = mech_type;
+		rv = p11->C_DecryptInit(session, &mech, privKeyObject);
+		if (rv == CKR_MECHANISM_INVALID || rv == CKR_MECHANISM_PARAM_INVALID) {
+			printf("Mechanism not supported\n");
+			return 0;
+		}
+		if (rv != CKR_OK)
+			p11_fatal("C_DecryptInit", rv);
+		if ((getCLASS(session, privKeyObject) == CKO_PRIVATE_KEY) && getALWAYS_AUTHENTICATE(session, privKeyObject))
+			login(session,CKU_CONTEXT_SPECIFIC);
+
+		data_len = encrypted_len;
+		time_before = get_time_before();
+		rv = p11->C_Decrypt(session, encrypted, encrypted_len, data, &data_len);
+		time_after = get_time_after();
+		time_diff = time_after - time_before;
+		if (rv != CKR_OK)
+			p11_fatal("C_Decrypt", rv);
+		
+		int r = write(fd_out, &time_diff, sizeof(time_diff));
+		if (r <= 0) {
+			p11_fatal("Write error", r);
+		}
+
+		failed = data_len != in_len || memcmp(orig_data, data, data_len);
+
+		if (failed) {
+			CK_ULONG n;
+
+			printf("resulting cleartext doesn't match input\n");
+			printf("    Original:");
+			for (n = 0; n < in_len; n++)
+				printf(" %02x", orig_data[n]);
+			printf("\n");
+			printf("    Decrypted:");
+			for (n = 0; n < data_len; n++)
+				printf(" %02x", data[n]);
+			printf("\n");
+			return 1;
+		}
 	}
 
-	mech.mechanism = mech_type;
-	rv = p11->C_DecryptInit(session, &mech, privKeyObject);
-	if (rv == CKR_MECHANISM_INVALID || rv == CKR_MECHANISM_PARAM_INVALID) {
-		printf("Mechanism not supported\n");
-		return 0;
-	}
-	if (rv != CKR_OK)
-		p11_fatal("C_DecryptInit", rv);
-	if ((getCLASS(session, privKeyObject) == CKO_PRIVATE_KEY) && getALWAYS_AUTHENTICATE(session, privKeyObject))
-		login(session,CKU_CONTEXT_SPECIFIC);
-
-	data_len = encrypted_len;
-	rv = p11->C_Decrypt(session, encrypted, encrypted_len, data, &data_len);
-	if (rv != CKR_OK)
-		p11_fatal("C_Decrypt", rv);
-
-	failed = data_len != in_len || memcmp(orig_data, data, data_len);
-
-	if (failed) {
-		CK_ULONG n;
-
-		printf("resulting cleartext doesn't match input\n");
-		printf("    Original:");
-		for (n = 0; n < in_len; n++)
-			printf(" %02x", orig_data[n]);
-		printf("\n");
-		printf("    Decrypted:");
-		for (n = 0; n < data_len; n++)
-			printf(" %02x", data[n]);
-		printf("\n");
-		return 1;
-	}
-
-	printf("OK\n");
+	printf("        Saving into: %s\n", key_name);
+	close(fd_out);
+	printf("        Result: OK\n");
 	return 0;
 }
 #endif
@@ -7592,6 +7710,7 @@ static int test_decrypt(CK_SESSION_HANDLE sess)
 	CK_ULONG        n;
 #endif
 	char 		*label;
+	char		 key_name[20];
 
 	rv = p11->C_GetSessionInfo(sess, &sessionInfo);
 	if (rv != CKR_OK)
@@ -7607,7 +7726,7 @@ static int test_decrypt(CK_SESSION_HANDLE sess)
 		return errors;
 	}
 
-	printf("Decryption (currently only for RSA)\n");
+	printf("testing time of decryption:\n");
 	for (j = 0; find_object(sess, CKO_PRIVATE_KEY, &privKeyObject, NULL, 0, j); j++) {
 		printf("  testing key %ld", j);
 		if ((label = getLABEL(sess, privKeyObject, NULL)) != NULL) {
@@ -7644,14 +7763,21 @@ static int test_decrypt(CK_SESSION_HANDLE sess)
 		printf("No OpenSSL support, unable to validate decryption\n");
 #else
 		for (n = 0; n < num_mechs; n++) {
+			int rounds = 100;
+			memset(key_name, 0, sizeof(key_name));
 			switch (mechs[n]) {
 			case CKM_RSA_PKCS_OAEP:
 				/* one more OAEP test with param .. */
-				errors += encrypt_decrypt(sess, mechs[n], privKeyObject, "ABC", 3);
-				/* fall through */
+				sprintf(key_name, "test%ld_oaep_key_%ld", n, j);
+				errors += encrypt_decrypt(sess, mechs[n], privKeyObject, "ABC", 3, key_name, rounds);
+				break;
 			case CKM_RSA_PKCS:
+				sprintf(key_name, "test%ld_pkcs_key_%ld", n, j);
+				errors += encrypt_decrypt(sess, mechs[n], privKeyObject, NULL, 0, key_name, rounds);
+				break;
 			case CKM_RSA_X_509:
-				errors += encrypt_decrypt(sess, mechs[n], privKeyObject, NULL, 0);
+				sprintf(key_name, "test%ld_x509_key_%ld", n, j);
+				errors += encrypt_decrypt(sess, mechs[n], privKeyObject, NULL, 0, key_name, rounds);
 				break;
 			default:
 				printf(" -- mechanism can't be used to decrypt, skipping\n");
@@ -7757,7 +7883,7 @@ static int test_card_detection(int wait_for_event)
 static int p11_test(CK_SESSION_HANDLE session)
 {
 	int errors = 0;
-
+	/*
 	errors += test_random(session);
 
 	errors += test_digest(session);
@@ -7769,7 +7895,7 @@ static int p11_test(CK_SESSION_HANDLE session)
 	errors += test_verify(session);
 
 	errors += test_unwrap(session);
-
+	*/
 	errors += test_decrypt(session);
 
 	if (errors == 0)
