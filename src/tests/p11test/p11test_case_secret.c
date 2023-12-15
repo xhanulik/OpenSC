@@ -198,7 +198,7 @@ int test_secret_sign_verify(test_cert_t *o, token_info_t *info, test_mech_t *mec
 
 	debug_print(" [ KEY %s ] Signing message of length %lu using CKM_%s",
 		o->id_str, message_length, get_mechanism_name(mech->mech));
-	rv = sign_message(o, info, message, message_length, mech, &sign, multipart);
+	rv = sign_message(o, info, message, message_length, mech, &sign, multipart, NULL, 0);
 	if (rv <= 0) {
 		mech->params = NULL;
 		mech->params_len = 0;

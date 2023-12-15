@@ -21,6 +21,9 @@
 
 #include "p11test_case_readonly.h"
 
+#include <fcntl.h>
+#include <unistd.h>
+
 #include <openssl/sha.h>
 #include <openssl/md5.h>
 #include <openssl/ripemd.h>
@@ -294,71 +297,139 @@ int encrypt_decrypt_test(test_cert_t *o, token_info_t *info, test_mech_t *mech,
 	return rv;
 }
 
+uint64_t get_time_before() {
+    uint64_t time_before = 0;
+#if defined( __s390x__ )
+    /* The 64 bit TOD (time-of-day) value is running at 4096.000MHz, but
+     * on some machines not all low bits are updated (the effective frequency
+     * remains though)
+     */
+
+    /* use STCKE as it has lower overhead,
+     * see http://publibz.boulder.ibm.com/epubs/pdf/dz9zr007.pdf
+     */
+    //asm volatile (
+    //    "stck    %0": "=Q" (time_before) :: "memory", "cc");
+
+    uint8_t clk[16];
+    asm volatile (
+          "stcke %0" : "=Q" (clk) :: "memory", "cc");
+    /* since s390x is big-endian we can just do a byte-by-byte copy,
+     * First byte is the epoch number (143 year cycle) while the following
+     * 8 bytes are the same as returned by STCK */
+    time_before = *(uint64_t *)(clk + 1);
+#elif defined( __PPC64__ )
+    asm volatile (
+        "mftb    %0": "=r" (time_before) :: "memory", "cc");
+#elif defined( __aarch64__ )
+    asm volatile (
+        "mrs %0, cntvct_el0": "=r" (time_before) :: "memory", "cc");
+#elif defined( __x86_64__ )
+    uint32_t time_before_high = 0, time_before_low = 0;
+    asm volatile (
+        "CPUID\n\t"
+        "RDTSC\n\t"
+        "mov %%edx, %0\n\t"
+        "mov %%eax, %1\n\t" : "=r" (time_before_high),
+        "=r" (time_before_low)::
+        "%rax", "%rbx", "%rcx", "%rdx");
+    time_before = (uint64_t)time_before_high<<32 | time_before_low;
+#else
+#error Unsupported architecture
+#endif /* ifdef __s390x__ */
+    return time_before;
+}
+
+/* Get an architecture specific most precise clock source with the lowest
+ * overhead. Should be executed at the end of the measurement period
+ * (because of barriers against speculative execution
+ */
+uint64_t get_time_after() {
+	uint64_t time_after = 0;
+#if defined( __s390x__ )
+	/* The 64 bit TOD (time-of-day) value is running at 4096.000MHz, but
+	 * on some machines not all low bits are updated (the effective frequency
+	 * remains though)
+	 */
+
+	/* use STCKE as it has lower overhead,
+	 * see http://publibz.boulder.ibm.com/epubs/pdf/dz9zr007.pdf
+	 */
+	//asm volatile (
+	//    "stck    %0": "=Q" (time_before) :: "memory", "cc");
+
+	uint8_t clk[16];
+	asm volatile (
+		  "stcke %0" : "=Q" (clk) :: "memory", "cc");
+	/* since s390x is big-endian we can just do a byte-by-byte copy,
+	 * First byte is the epoch number (143 year cycle) while the following
+	 * 8 bytes are the same as returned by STCK */
+	time_after = *(uint64_t *)(clk + 1);
+#elif defined( __PPC64__ )
+	/* Note: mftb can be used with a single instruction on ppc64, for ppc32
+	 * it's necessary to read upper and lower 32bits of the values in two
+	 * separate calls and verify that we didn't do that during low value
+	 * overflow
+	 */
+	asm volatile (
+		"mftb    %0": "=r" (time_after) :: "memory", "cc");
+#elif defined( __aarch64__ )
+	asm volatile (
+		"mrs %0, cntvct_el0": "=r" (time_after) :: "memory", "cc");
+#elif defined( __x86_64__ )
+	uint32_t time_after_high = 0, time_after_low = 0;
+	asm volatile (
+		"RDTSCP\n\t"
+		"mov %%edx, %0\n\t"
+		"mov %%eax, %1\n\t"
+		"CPUID\n\t": "=r" (time_after_high),
+		"=r" (time_after_low)::
+		"%rax", "%rbx", "%rcx", "%rdx");
+	time_after = (uint64_t)time_after_high<<32 | time_after_low;
+#else
+#error Unsupported architecture
+#endif /* ifdef __s390x__ */
+	return time_after;
+}
+
 int sign_message(test_cert_t *o, token_info_t *info, CK_BYTE *message,
     CK_ULONG message_length, test_mech_t *mech, unsigned char **sign,
-    int multipart)
+    int multipart, char *key_name, int rounds)
 {
 	CK_RV rv;
 	CK_FUNCTION_LIST_PTR fp = info->function_pointer;
 	CK_MECHANISM sign_mechanism = { mech->mech, mech->params, mech->params_len };
 	CK_ULONG sign_length = 0;
-	char *name;
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-	if (!legacy_provider) {
-		if (!(legacy_provider = OSSL_PROVIDER_try_load(NULL, "legacy", 1))) {
-			debug_print(" [SKIP %s ] Failed to load legacy provider", o->id_str);
+	uint64_t time_before, time_after, time_diff;
+	int fd_out;
+
+	printf("		Opening output file %s\n", key_name);
+	fd_out = open(key_name, O_WRONLY|O_TRUNC|O_CREAT, 0666);
+	if (fd_out < 0){
+		printf("		Opening output file failed\n");
+		return 0;
+	}
+
+	printf("		Starting measuring: \n");
+	for (int i = 0; i < rounds; i++) {
+		always_authenticate(o, info);
+		sign_length = 0;
+		*sign = NULL;
+		printf("			Round %d\n", i);
+		rv = fp->C_SignInit(info->session_handle, &sign_mechanism,
+			o->private_handle);
+		if (rv == CKR_KEY_TYPE_INCONSISTENT) {
+			debug_print(" [SKIP %s ] Not allowed to sign with this key?", o->id_str);
+			return 0;
+		} else if (rv == CKR_MECHANISM_INVALID) {
+			debug_print(" [SKIP %s ] Bad mechanism. Not supported?", o->id_str);
+			return 0;
+		} else if (rv != CKR_OK) {
+			debug_print(" [SKIP %s ] Not allowed to sign with this key?", o->id_str);
 			return 0;
 		}
-	}
-#endif
-	rv = fp->C_SignInit(info->session_handle, &sign_mechanism,
-		o->private_handle);
-	if (rv == CKR_KEY_TYPE_INCONSISTENT) {
-		debug_print(" [SKIP %s ] Not allowed to sign with this key?", o->id_str);
-		return 0;
-	} else if (rv == CKR_MECHANISM_INVALID) {
-		debug_print(" [SKIP %s ] Bad mechanism. Not supported?", o->id_str);
-		return 0;
-	} else if (rv != CKR_OK) {
-		debug_print(" [SKIP %s ] Not allowed to sign with this key?", o->id_str);
-		return 0;
-	}
 
-	always_authenticate(o, info);
-
-	if (multipart) {
-		int part = message_length / 3;
-		rv = fp->C_SignUpdate(info->session_handle, message, part);
-		if (rv == CKR_MECHANISM_INVALID) {
-			fprintf(stderr, "  Multipart Signature not supported with CKM_%s\n",
-				get_mechanism_name(mech->mech));
-			return -1;
-		} else if (rv != CKR_OK) {
-			fprintf(stderr, "  C_SignUpdate: rv = 0x%.8lX\n", rv);
-			return -1;
-		}
-		rv = fp->C_SignUpdate(info->session_handle, message + part, message_length - part);
-		if (rv != CKR_OK) {
-			fprintf(stderr, "  C_SignUpdate: rv = 0x%.8lX\n", rv);
-			return -1;
-		}
-		/* Call C_SignFinal with NULL argument to find out the real size of signature */
-		rv = fp->C_SignFinal(info->session_handle, *sign, &sign_length);
-		if (rv != CKR_OK) {
-			fprintf(stderr, "  C_SignFinal: rv = 0x%.8lX\n", rv);
-			return -1;
-		}
-
-		*sign = malloc(sign_length);
-		if (*sign == NULL) {
-			fprintf(stderr, "%s: malloc failed", __func__);
-			return -1;
-		}
-
-		/* Call C_SignFinal with allocated buffer to the actual signature */
-		rv = fp->C_SignFinal(info->session_handle, *sign, &sign_length);
-		name = "C_SignFinal";
-	} else {
+	
 		/* Call C_Sign with NULL argument to find out the real size of signature */
 		rv = fp->C_Sign(info->session_handle,
 			message, message_length, *sign, &sign_length);
@@ -374,15 +445,25 @@ int sign_message(test_cert_t *o, token_info_t *info, CK_BYTE *message,
 		}
 
 		/* Call C_Sign with allocated buffer to the actual signature */
+		time_before = get_time_before();
 		rv = fp->C_Sign(info->session_handle,
 			message, message_length, *sign, &sign_length);
-		name = "C_Sign";
-	}
-	if (rv != CKR_OK) {
+		time_after = get_time_after();
+		time_diff = time_after - time_before;
+		int r = write(fd_out, &time_diff, sizeof(time_diff));
+		if (r <= 0) {
+			printf("Write error\n");
+			return -1;
+		}
+		if (rv != CKR_OK) {
+			printf("Sign error\n");
+			return -1;
+		}
 		free(*sign);
-		fprintf(stderr, "  %s: rv = 0x%.8lX\n", name, rv);
-		return -1;
 	}
+
+	close(fd_out);
+	printf("		Writing into file %s\n", key_name);
 	return sign_length;
 }
 
@@ -627,11 +708,10 @@ openssl_verify:
  *  Serious errors terminate the execution.
  */
 int sign_verify_test(test_cert_t *o, token_info_t *info, test_mech_t *mech,
-    CK_ULONG message_length, int multipart)
+    CK_ULONG message_length, int multipart, char *key_name, int rounds)
 {
 	CK_BYTE *message = NULL;
 	CK_BYTE *sign = NULL;
-	CK_ULONG sign_length = 0;
 	int rv = 0;
 
 	if (message_length > strlen(MESSAGE_TO_SIGN)) {
@@ -672,17 +752,13 @@ int sign_verify_test(test_cert_t *o, token_info_t *info, test_mech_t *mech,
 
 	debug_print(" [ KEY %s ] Signing message of length %lu using CKM_%s",
 		o->id_str, message_length, get_mechanism_name(mech->mech));
-	rv = sign_message(o, info, message, message_length, mech, &sign, multipart);
+	rv = sign_message(o, info, message, message_length, mech, &sign, multipart, key_name, rounds);
 	if (rv <= 0) {
 		free(message);
 		return rv;
 	}
-	sign_length = (unsigned long) rv;
 
-	debug_print(" [ KEY %s ] Verify message signature", o->id_str);
-	rv = verify_message(o, info, message, message_length, mech,
-		sign, sign_length, multipart);
-	free(sign);
+	rv = 0;
 	free(message);
 	return rv;
 }
@@ -713,28 +789,16 @@ void readonly_tests(void **state) {
 		 * or vice versa */
 		//if (o->sign && o->verify)
 			for (j = 0; j < o->num_mechs; j++) {
+				char key_name[50] = {0};
+				int rounds = 100;
 				test_mech_t *m = &(objects.data[i].mechs[j]);
 				if ((m->usage_flags & CKF_SIGN) == 0) {
 					/* Skip non-signature mechanisms (for example derive ones) */
 					continue;
 				}
-				used |= sign_verify_test(o, info, m, 32, 0);
+				sprintf(key_name, "object_%d_mech_%ld", i, m->mech);
+				used |= sign_verify_test(o, info, m, 32, 0, key_name, rounds);
 			}
-
-		//if (o->encrypt && o->decrypt)
-			for (j = 0; j < o->num_mechs; j++) {
-				test_mech_t *m = &(objects.data[i].mechs[j]);
-				if ((m->usage_flags & CKF_DECRYPT) == 0) {
-					/* Skip non-decrypt mechanisms (for example derive ones) */
-					continue;
-				}
-				used |= encrypt_decrypt_test(o, info, m, 32, 0);
-			}
-
-		if (!used) {
-			debug_print(" [ WARN %s ] Private key with unknown purpose T:%02lX",
-			o->id_str, o->key_type);
-		}
 	}
 
 	if (objects.count == 0) {

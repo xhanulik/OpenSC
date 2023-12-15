@@ -52,7 +52,7 @@ void multipart_tests(void **state) {
 		//if (objects.data[i].sign && objects.data[i].verify)
 			for (j = 0; j < objects.data[i].num_mechs; j++)
 				used |= sign_verify_test(&(objects.data[i]), info,
-					&(objects.data[i].mechs[j]), 32, 1);
+					&(objects.data[i].mechs[j]), 32, 1, NULL, 0);
 
 		if (!used) {
 			debug_print(" [ WARN %s ] Private key with unknown purpose T:%02lX",

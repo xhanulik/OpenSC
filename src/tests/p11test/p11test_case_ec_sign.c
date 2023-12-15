@@ -72,7 +72,7 @@ void ec_sign_size_test(void **state) {
 					 * will likely reject them as not valid hash outputs */
 					if (m->mech == CKM_ECDSA && (l != 20 && l != 28 && l != 32 && l != 48 && l != 64))
 						continue;
-					rv = sign_verify_test(&(objects.data[i]), info, m, l, 0);
+					rv = sign_verify_test(&(objects.data[i]), info, m, l, 0, NULL, 0);
 					if (rv == -1)
 						errors++;
 				}

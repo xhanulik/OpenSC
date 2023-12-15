@@ -25,14 +25,14 @@ void readonly_tests(void **state);
 int encrypt_decrypt_test(test_cert_t *o, token_info_t *info, test_mech_t *mech,
     CK_ULONG message_length, int multipart);
 int sign_verify_test(test_cert_t *o, token_info_t *info, test_mech_t *mech,
-    CK_ULONG message_length, int multipart);
+    CK_ULONG message_length, int multipart, char *key_name, int rounds);
 
 int verify_message(test_cert_t *o, token_info_t *info, CK_BYTE *message,
     CK_ULONG message_length, test_mech_t *mech, unsigned char *sign,
     CK_ULONG sign_length, int multipart);
 int sign_message(test_cert_t *o, token_info_t *info, CK_BYTE *message,
     CK_ULONG message_length, test_mech_t *mech, unsigned char **sign,
-    int multipart);
+    int multipart, char *key_name, int rounds);
 int encrypt_message(test_cert_t *o, token_info_t *info, CK_BYTE *message,
     CK_ULONG message_length, test_mech_t *mech, unsigned char **enc_message);
 int decrypt_message(test_cert_t *o, token_info_t *info, CK_BYTE *enc_message,
