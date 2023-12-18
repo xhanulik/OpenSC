@@ -20,6 +20,19 @@
 #   define constant_inline  inline           /* inline */
 #endif
 
+/*-
+ * The boolean methods return a bitmask of all ones (0xff...f) for true
+ * and 0 for false. For example,
+ *      if (a < b) {
+ *        c = a;
+ *      } else {
+ *        c = b;
+ *      }
+ * can be written as
+ *      unsigned int lt = constant_time_lt(a, b);
+ *      c = constant_time_select(lt, a, b);
+ */
+
 static constant_inline unsigned int value_barrier(unsigned int a)
 {
     volatile unsigned int r = a;
