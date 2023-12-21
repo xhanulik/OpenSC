@@ -201,8 +201,6 @@ sc_pkcs1_strip_02_padding_constant_time(sc_context_t *ctx, unsigned int n, const
 	// length of message
 	mlen = data_len - msg_index;
 
-	// check that there is a message after padding
-	good &= constant_time_ge(mlen, 1);
 	// check that message fits into out buffer
 	good &= constant_time_ge(*out_len, mlen);
 

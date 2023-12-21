@@ -160,6 +160,20 @@ static void torture_longer_padding(void **state)
 	free(out);
 }
 
+static void torture_empty_message(void **state)
+{
+	unsigned int n = 18;
+	unsigned int in_len = 18;
+	unsigned char in[] = {0x00, 0x02,
+                            0x0e, 0x38, 0x97, 0x18, 0x16, 0x57, 0x9e, 0x30, 0xb6, 0xa5, 0x78, 0x13, 0x20, 0xca, 0x11,
+                        0x00};
+	unsigned int out_len = 8;
+	unsigned char *out = malloc(out_len * sizeof(unsigned char));
+	int r = sc_pkcs1_strip_02_padding_constant_time(NULL, n, in, in_len, out, &out_len);
+	assert_int_equal(r, 0);
+	free(out);
+}
+
 int main(void)
 {
 	const struct CMUnitTest tests[] = {
@@ -172,7 +186,8 @@ int main(void)
 		cmocka_unit_test(torture_missing_second_zero),
 		cmocka_unit_test(torture_missing_message),
 		cmocka_unit_test(torture_one_byte_message),
-		cmocka_unit_test(torture_longer_padding)
+		cmocka_unit_test(torture_longer_padding),
+		cmocka_unit_test(torture_empty_message)
 	};
 	return cmocka_run_group_tests(tests, NULL, NULL);
 }
