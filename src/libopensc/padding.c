@@ -158,8 +158,8 @@ sc_pkcs1_strip_02_padding_constant_time(sc_context_t *ctx, unsigned int n, const
 	unsigned int zero_index = 0, msg_index, mlen = -1, len = 0;
 	LOG_FUNC_CALLED(ctx);
 
-	if (data == NULL || data_len <= 0 || data_len > n
-		|| n < SC_PKCS1_PADDING_MIN_SIZE || out_len == NULL)
+	if (data == NULL || data_len <= 0 || data_len > n ||
+			n < SC_PKCS1_PADDING_MIN_SIZE || out_len == NULL)
 		LOG_FUNC_RETURN(ctx, SC_ERROR_INTERNAL);
 
 	tmp_outlen = *out_len;
