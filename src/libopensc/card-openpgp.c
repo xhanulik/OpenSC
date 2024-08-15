@@ -2937,11 +2937,12 @@ pgp_parse_and_set_pubkey_output(sc_card_t *card, u8* data, size_t data_len,
 			/* len is ecpoint length + format byte
 			 * see section 7.2.14 of 3.3.1 specs */
 			if ((key_info->u.ec.ecpoint_len) != (len - 1)
-				|| key_info->u.ec.ecpoint == NULL) {
+				|| (key_info->u.ec.ecpoint == NULL && len > 1)) {
 				free(key_info->u.ec.ecpoint);
 				key_info->u.ec.ecpoint = malloc(len);
 				if (key_info->u.ec.ecpoint == NULL)
 					LOG_FUNC_RETURN(card->ctx, SC_ERROR_NOT_ENOUGH_MEMORY);
+				key_info->u.ec.ecpoint_len = len - 1;
 			}
 			memcpy(key_info->u.ec.ecpoint, part + 1, len - 1);
 		}
