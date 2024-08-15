@@ -2785,8 +2785,9 @@ pgp_calculate_and_store_fingerprint(sc_card_t *card, time_t ctime,
 		LOG_TEST_GOTO_ERR(card->ctx, SC_ERROR_OUT_OF_MEMORY, "Cannot find blob 00C5");
 
 	/* save the fingerprints sequence */
-	if (fpseq_blob->len < 20 * (key_info->key_id - 1) + 20)
-		LOG_TEST_GOTO_ERR(card->ctx, SC_ERROR_CORRUPTED_DATA, "Incorrect length of data of blob 00C5");
+	fprintf(stderr, "here: %ud, %ud\n", fpseq_blob->len, key_info->key_id);
+	if (fpseq_blob->len < (unsigned int) 20 * (key_info->key_id - 1))
+		LOG_TEST_GOTO_ERR(card->ctx, SC_ERROR_OUT_OF_MEMORY, "Incorrect length of data of blob 00C5");
 	newdata = malloc(fpseq_blob->len);
 	if (newdata == NULL)
 		LOG_TEST_GOTO_ERR(card->ctx, SC_ERROR_OUT_OF_MEMORY,
