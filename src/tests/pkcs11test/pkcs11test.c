@@ -40,8 +40,9 @@ display_usage()
 		" \t./pkcs11test [OPTIONS]\n"
 		" Options:\n"
 		" \t-m, --module module_path Path to tested module (Default: "DEFAULT_P11LIB")\n"
-		" \t-p, --pin	pin		 Application PIN\n"
+		" \t-i, --in	filename	Input file with tests\n"
 		" \t-o, --out	filename	File to write an output log\n"
+		" \t-p, --pin	pin		 Application PIN\n"
 		" \t-v, --verbose			Verbose log output\n"
 		" \t-h, --help			   This help\n"
 		"\n");
