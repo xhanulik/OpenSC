@@ -18,7 +18,7 @@ TODO
 
 ## Infrastructure
 
-Test cases are parse from XML notation via libxml2 library. The tool iterates over XML nodes defining tested function calls and function return values.
+Test cases are parsed from XML notation via libxml2 library. The tool iterates over XML nodes defining tested function calls and function return values.
 
 For calling nodes:
 
@@ -33,22 +33,31 @@ For return values nodes:
 ### Tool structure
 
 1. `pkcs11test_process.c` - main testing function with loop
-  - going over XML nodes in document
-  - checking that every calling node has return node following right after
-  - storing internal data with values for further use
-  - **maps node names to processing functions for every PKCS#11 function**
+
+  * going over XML nodes in document
+  * checking that every calling node has return node following right after
+  * storing internal data with values for further use
+  * **maps node names to processing functions for every PKCS#11 function**
+
 2. `pkcs11test_func.c` - processing function
-  - parsing values from node properties/arguments
-  - running the PKCS#1 function with specified parameter
-  - checking return value
-  - checking return arguments, storing them for future use if specified
+
+  * parsing values from node properties/arguments
+  * running the PKCS#1 function with specified parameter
+  * checking return value
+  * checking return arguments, storing them for future use if specified
+
 3. `pkcs11test_params_parse.c` - parse for values from XML nodes into structures
-  - mapping from structure name and function flag to processing function
-  - high-level parsers
-  - retrieving values from internal data if needed
+
+  * mapping from structure name and function flag to processing function
+  * high-level parsers
+  * retrieving values from internal data if needed
+
 4. `pkcs11test_prop_parse.c` - low-level parsers for base values
 5. `pkcs11test_params_check.c` - test given return values from PKCS#11 functions
-  - mapping from structure name and function flag to checking functions
-  - high-level checkers
-  - storing data into internal memory if needed
+
+  * mapping from structure name and function flag to checking functions
+  * high-level checkers
+  * storing and retrieving data into internal memory if needed
+  * processing of lists
+
 6. `pkcs11test_prop_check.c` - low-level checkers for base values
