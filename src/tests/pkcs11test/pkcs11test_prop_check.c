@@ -38,6 +38,7 @@ test_CK_BYTE_prop(struct test_info *info, struct internal_data **data, xmlNode *
 		struct internal_data *data_length = internal_data_find(*data, (char *)value);
 		if (data_length == NULL) {
 			/* Not found, store it into internal data */
+			log("\t\t\t\t\tStoring %s = %x.", (char *)value, actual);
 			if ((data_length = calloc(1, sizeof(struct internal_data))) == NULL
 					|| (data_length->data = malloc(sizeof(CK_ULONG))) == NULL) {
 				free(data_length);
@@ -47,6 +48,7 @@ test_CK_BYTE_prop(struct test_info *info, struct internal_data **data, xmlNode *
 			internal_data_add(data, data_length);
 		} else {
 			/* Value found, check against actual value*/
+			log("\t\t\t\t\tFound stored %s = %x.", (char *)value, actual);
 			check_CK_BYTE(*((CK_BYTE_PTR)data_length->data), actual);
 		}
 		*((CK_BYTE_PTR)(*data)->data) = actual;
