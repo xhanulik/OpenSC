@@ -17,23 +17,23 @@ int test_params(struct test_info *info, struct internal_data **data, xmlNode *pa
 
 /* Base structures*/
 int test_CK_RV(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length);
-int test_CK_UTF8CHAR_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length);
-int test_CK_BYTE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length);
-int test_CK_FLAGS(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length);
-int test_CK_OBJECT_CLASS(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length);
-int test_CK_KEY_TYPE(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length);
+int test_CK_UTF8CHAR_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable);
+int test_CK_BYTE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable);
+int test_CK_FLAGS(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable);
+int test_CK_OBJECT_CLASS(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable);
+int test_CK_KEY_TYPE(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable);
 
 /* Nested structures */
-int test_CK_INFO(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length);
-int test_CK_SLOT_INFO(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length);
-int test_CK_TOKEN_INFO(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length);
-int test_CK_SESSION_HANDLE(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length);
-int test_CK_MECHANISM_INFO(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length);
+int test_CK_INFO(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable);
+int test_CK_SLOT_INFO(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable);
+int test_CK_TOKEN_INFO(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable);
+int test_CK_SESSION_HANDLE(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable);
+int test_CK_MECHANISM_INFO(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable);
 
 /* List of structures */
-int test_CK_SLOT_ID_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length);
-int test_CK_OBJECT_HANDLE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length);
-int test_CK_ATTRIBUTE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length);
-int test_CK_MECHANISM_TYPE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length);
+int test_CK_SLOT_ID_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable);
+int test_CK_OBJECT_HANDLE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable);
+int test_CK_ATTRIBUTE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable);
+int test_CK_MECHANISM_TYPE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable);
 
 #endif // PKCS11TEST_PARAMS_H

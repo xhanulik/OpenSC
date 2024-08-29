@@ -2,6 +2,7 @@
 #define PKCS11TEST_TYPES_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "pkcs11/pkcs11.h"
 
 #define PKCS11TEST_CALLING_FUNC 0x01
@@ -27,7 +28,7 @@
 
 #define error_log(fmt, ...) \
 	do { \
-		fprintf(stderr, fmt "\n", ##__VA_ARGS__); \
+		fprintf(stdout, fmt "\n", ##__VA_ARGS__); \
 	} while (0)
 
 struct test_info
@@ -84,14 +85,15 @@ struct param_parse_map {
 };
 
 /* Checker functions*/
-typedef int (*check_func)(struct test_info *, struct internal_data **, xmlNode *, CK_VOID_PTR, CK_ULONG_PTR);
-typedef int (*prop_check_func)(struct test_info *, struct internal_data **, xmlNode *, const char **, CK_VOID_PTR, CK_ULONG_PTR length);
+typedef int (*check_func)(struct test_info *, struct internal_data **, xmlNode *, CK_VOID_PTR, CK_ULONG_PTR, bool);
+typedef int (*prop_check_func)(struct test_info *, struct internal_data **, xmlNode *, const char **, CK_VOID_PTR, CK_ULONG_PTR length, bool variable);
 
 struct prop_check_map {
 	const char *name;
 	CK_VOID_PTR ptr;
 	CK_ULONG_PTR length;
 	prop_check_func check_func;
+	bool variable;
 };
 
 struct param_check_map {
@@ -99,6 +101,7 @@ struct param_check_map {
 	CK_VOID_PTR ptr;
 	CK_ULONG_PTR length;
 	check_func check_func;
+	bool variable;
 };
 
 #endif // PKCS11TEST_TYPES_H

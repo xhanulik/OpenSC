@@ -188,6 +188,7 @@ parse_CK_SESSION_HANDLE(struct test_info *info, struct internal_data **data,
 	if (r != PKCS11TEST_SUCCESS && r != PKCS11TEST_DATA_NOT_FOUND) {
 		return r;
 	}
+	*((CK_SESSION_HANDLE_PTR)ptr) = session;
 	return r; 
 }
 

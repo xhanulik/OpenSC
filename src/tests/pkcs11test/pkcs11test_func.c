@@ -73,8 +73,8 @@ process_C_GetInfo(xmlNode *calling_node, xmlNode *return_node, struct internal_d
 	CK_RV actual_rv;
 	int r;
 	struct param_check_map map[] = {
-		{"Info", &info_arg, NULL, test_CK_INFO},
-		{NULL, NULL, NULL, NULL}
+		{"Info", &info_arg, NULL, test_CK_INFO, false},
+		{NULL, NULL, NULL, NULL, true}
 	};
 	
 	log("C_Get_info: started processing");
@@ -124,8 +124,8 @@ process_C_GetSlotList(xmlNode *calling_node, xmlNode *return_node, struct intern
 		{NULL, NULL, NULL, NULL}
 	};
 	struct param_check_map out_map[] = {
-		{"SlotList", &slot_list, &count, test_CK_SLOT_ID_PTR},
-		{NULL, NULL, NULL, NULL}
+		{"SlotList", &slot_list, &count, test_CK_SLOT_ID_PTR, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 
 	log("Processing C_GetSlotList function");
@@ -153,8 +153,8 @@ process_C_GetSlotInfo(xmlNode *calling_node, xmlNode *return_node, struct intern
 		{NULL, NULL, NULL, NULL}
 	};
 	struct param_check_map out_map[] = {
-		{"Info", &slot_info, NULL, test_CK_SLOT_INFO},
-		{NULL, NULL, NULL, NULL}
+		{"Info", &slot_info, NULL, test_CK_SLOT_INFO, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 
 	log("Processing C_GetSlotInfo function");
@@ -181,8 +181,8 @@ process_C_GetTokenInfo(xmlNode *calling_node, xmlNode *return_node, struct inter
 		{NULL, NULL, NULL, NULL}
 	};
 	struct param_check_map out_map[] = {
-		{"Info", &token_info, NULL, test_CK_TOKEN_INFO},
-		{NULL, NULL, NULL, NULL}
+		{"Info", &token_info, NULL, test_CK_TOKEN_INFO, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 
 	log("Processing C_GetTokenInfo function");
@@ -210,8 +210,8 @@ process_C_GetMechanismList(xmlNode *calling_node, xmlNode *return_node, struct i
 		{NULL, NULL, NULL, NULL}
 	};
 	struct param_check_map out_map[] = {
-		{"MechanismList", &mechanism_list, &pul_count, test_CK_MECHANISM_TYPE_PTR},
-		{NULL, NULL, NULL, NULL}
+		{"MechanismList", &mechanism_list, &pul_count, test_CK_MECHANISM_TYPE_PTR, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 
 	log("Processing C_GetMechanismList function");
@@ -239,8 +239,8 @@ process_C_GetMechanismInfo(xmlNode *calling_node, xmlNode *return_node, struct i
 		{NULL, NULL, NULL, NULL}
 	};
 	struct param_check_map out_map[] = {
-		{"Info", &mechanism_info, NULL, test_CK_MECHANISM_INFO},
-		{NULL, NULL, NULL, NULL}
+		{"Info", &mechanism_info, NULL, test_CK_MECHANISM_INFO, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 
 	log("Processing C_GetMechanismInfo function");
@@ -272,8 +272,8 @@ process_C_OpenSession(xmlNode *calling_node, xmlNode *return_node, struct intern
 		{NULL, NULL, NULL, NULL}
 	};
 	struct param_check_map out_map[] = {
-		{"Session", &session, NULL, test_CK_SESSION_HANDLE},
-		{NULL, NULL, NULL, NULL}
+		{"Session", &session, NULL, test_CK_SESSION_HANDLE, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 
 	log("Processing C_OpenSession function");
@@ -416,8 +416,8 @@ process_C_FindObjects(xmlNode *calling_node, xmlNode *return_node, struct intern
 		{NULL, NULL, NULL, NULL}
 	};
 	struct param_check_map out_map[] = {
-		{"Object", objects, &pul_object_count, test_CK_OBJECT_HANDLE_PTR},
-		{NULL, NULL, NULL, NULL}
+		{"Object", objects, &pul_object_count, test_CK_OBJECT_HANDLE_PTR, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 
 	log("Processing C_FindObjects function");
@@ -469,8 +469,8 @@ process_C_GetAttributeValue(xmlNode *calling_node, xmlNode *return_node,
 		{NULL, NULL, NULL, NULL}
 	};
 	struct param_check_map out_map[] = {
-		{"Template", &template, &count, test_CK_ATTRIBUTE_PTR},
-		{NULL, NULL, NULL, NULL}
+		{"Template", &template, &count, test_CK_ATTRIBUTE_PTR, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 
 	log("Processing C_GetAttributeValue function");
@@ -529,8 +529,8 @@ int process_C_Sign(xmlNode *calling_node, xmlNode *return_node,
 		{NULL, NULL, NULL, NULL}
 	};
 	struct param_check_map out_map[] = {
-		{"Signature", &signature, &signature_len, test_CK_BYTE_PTR},
-		{NULL, NULL, NULL, NULL}
+		{"Signature", &signature, &signature_len, test_CK_BYTE_PTR, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 
 	log("Processing C_Sign function");

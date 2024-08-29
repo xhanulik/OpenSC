@@ -13,7 +13,7 @@ test_params(struct test_info *info, struct internal_data **data, xmlNode *parent
 					check_func func = map[i].check_func;
 					if (func != NULL) {
 						log("\t%s: Checking node against actual return value.", map[i].name);
-						r = func(info, data, node, map[i].ptr, map[i].length);
+						r = func(info, data, node, map[i].ptr, map[i].length, map[i].variable);
 						if (r != PKCS11TEST_SUCCESS) {
 							return r;
 						}
@@ -26,13 +26,14 @@ test_params(struct test_info *info, struct internal_data **data, xmlNode *parent
 }
 
 int
-test_CK_RV(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_RV(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length)
 {
 	CK_RV *exp_rv = (CK_RV *)ptr;
 	int r;
 	struct prop_check_map prop_map[] = {
-		{"rv", exp_rv, NULL, test_CK_RV_prop},
-		{NULL, NULL, NULL, NULL}
+		{"rv", exp_rv, NULL, test_CK_RV_prop, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	log("\tChecking return value.");
 	r = test_props(info, data, node, prop_map);
@@ -40,111 +41,119 @@ test_CK_RV(struct test_info *info, struct internal_data **data, xmlNode *node, C
 }
 
 int
-test_CK_FLAGS(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_FLAGS(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	CK_FLAGS *act_flags = (CK_FLAGS *)ptr;
 	int r;
 	struct prop_check_map prop_map[] = {
-		{"value", act_flags, NULL, test_CK_FLAGS_prop},
-		{NULL, NULL, NULL, NULL}
+		{"value", act_flags, NULL, test_CK_FLAGS_prop, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_props(info, data, node, prop_map);
 	return r;
 }
 
 int
-test_CK_OBJECT_CLASS(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_OBJECT_CLASS(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	CK_OBJECT_CLASS *act_class = 0;
 	int r;
 	struct prop_check_map prop_map[] = {
-		{"value", act_class, NULL, test_CK_OBJECT_CLASS_prop},
-		{NULL, NULL, NULL, NULL}
+		{"value", act_class, NULL, test_CK_OBJECT_CLASS_prop, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_props(info, data, node, prop_map);
 	return r;
 }
 
 int
-test_CK_KEY_TYPE(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_KEY_TYPE(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	CK_KEY_TYPE *act_type = 0;
 	int r;
 	struct prop_check_map prop_map[] = {
-		{"value", act_type, NULL, test_CK_KEY_TYPE_prop},
-		{NULL, NULL, NULL, NULL}
+		{"value", act_type, NULL, test_CK_KEY_TYPE_prop, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_props(info, data, node, prop_map);
 	return r;
 }
 
 int
-test_CK_UTF8CHAR_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_UTF8CHAR_PTR(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	CK_UTF8CHAR_PTR *exp_chars = (CK_UTF8CHAR_PTR *)ptr;
 	int r;
 	struct prop_check_map prop_map[] = {
-		{"value", exp_chars, length, test_CK_UTF8CHAR_PTR_prop},
-		{NULL, NULL, NULL, NULL}
+		{"value", exp_chars, length, test_CK_UTF8CHAR_PTR_prop, variable},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_props(info, data, node, prop_map);
 	return r;
 }
 
 int
-test_CK_CHAR_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_CHAR_PTR(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	CK_CHAR_PTR *exp_chars = (CK_CHAR_PTR *)ptr;
 	int r;
 	struct prop_check_map prop_map[] = {
-		{"value", exp_chars, length, test_CK_CHAR_PTR_prop},
-		{NULL, NULL, NULL, NULL}
+		{"value", exp_chars, length, test_CK_CHAR_PTR_prop, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_props(info, data, node, prop_map);
 	return r;
 }
 
 int
-test_CK_BYTE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_BYTE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	CK_BYTE_PTR *exp_bytes = (CK_BYTE_PTR *)ptr;
 	int r;
 	struct prop_check_map prop_map[] = {
-		{"value", exp_bytes, length, test_CK_BYTE_PTR_prop},
-		{NULL, NULL, NULL, NULL}
+		{"value", exp_bytes, length, test_CK_BYTE_PTR_prop, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_props(info, data, node, prop_map);
 	return r;
 }
 
 int
-test_CK_VERSION(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_VERSION(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	CK_VERSION_PTR act_version = (CK_VERSION_PTR) ptr;
 	int r;
 	struct prop_check_map prop_map[] = {
-		{"minor", &act_version->minor, NULL, test_CK_BYTE_prop},
-		{"major", &act_version->major, NULL, test_CK_BYTE_prop},
-		{NULL, NULL, NULL, NULL}
+		{"minor", &act_version->minor, NULL, test_CK_BYTE_prop, variable},
+		{"major", &act_version->major, NULL, test_CK_BYTE_prop, variable},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_props(info, data, node, prop_map);
 	return r;
 }
 
 int
-test_CK_INFO(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_INFO(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	CK_INFO_PTR info_arg = (CK_INFO_PTR)ptr;
 	CK_ULONG manufacturerID_len = 32;
 	CK_ULONG libraryDescription_len = 64;
 	int r;
 	struct param_check_map param_map[] = {
-		{"CryptokiVersion", &info_arg->cryptokiVersion, NULL, test_CK_VERSION},
-		{"ManufacturerID", &info_arg->manufacturerID, &manufacturerID_len, test_CK_UTF8CHAR_PTR},
-		{"Flags", &info_arg->flags, NULL, test_CK_FLAGS},
-		{"LibraryDescription", &info_arg->libraryDescription, &libraryDescription_len, test_CK_UTF8CHAR_PTR},
-		{"LibraryVersion", &info_arg->libraryVersion, NULL, test_CK_VERSION},
-		{NULL, NULL, NULL, NULL}
+		{"CryptokiVersion", &info_arg->cryptokiVersion, NULL, test_CK_VERSION, true},
+		{"ManufacturerID", &info_arg->manufacturerID, &manufacturerID_len, test_CK_UTF8CHAR_PTR, true},
+		{"Flags", &info_arg->flags, NULL, test_CK_FLAGS, false},
+		{"LibraryDescription", &info_arg->libraryDescription, &libraryDescription_len, test_CK_UTF8CHAR_PTR, true},
+		{"LibraryVersion", &info_arg->libraryVersion, NULL, test_CK_VERSION, true},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 
 	r = test_params(info, data, node, param_map);
@@ -152,41 +161,43 @@ test_CK_INFO(struct test_info *info, struct internal_data **data, xmlNode *node,
 }
 
 int
-test_CK_SLOT_INFO(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_SLOT_INFO(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	CK_SLOT_INFO_PTR info_arg = (CK_SLOT_INFO_PTR)ptr;
 	CK_ULONG manufacturerID_len = 32;
 	CK_ULONG slotDescription_len = 64;
 	int r;
 	struct param_check_map map[] = {
-		{"SlotDescription", &info_arg->slotDescription, &slotDescription_len, test_CK_UTF8CHAR_PTR},
-		{"ManufacturerID", &info_arg->manufacturerID, &manufacturerID_len, test_CK_UTF8CHAR_PTR},
-		{"Flags", &info_arg->flags, NULL, test_CK_FLAGS},
-		{"HardwareVersion", &info_arg->hardwareVersion, NULL, test_CK_VERSION},
-		{"FirmwareVersion", &info_arg->firmwareVersion, NULL, test_CK_VERSION},
-		{NULL, NULL, NULL, NULL}
+		{"SlotDescription", &info_arg->slotDescription, &slotDescription_len, test_CK_UTF8CHAR_PTR, false},
+		{"ManufacturerID", &info_arg->manufacturerID, &manufacturerID_len, test_CK_UTF8CHAR_PTR, true},
+		{"Flags", &info_arg->flags, NULL, test_CK_FLAGS, false},
+		{"HardwareVersion", &info_arg->hardwareVersion, NULL, test_CK_VERSION, false},
+		{"FirmwareVersion", &info_arg->firmwareVersion, NULL, test_CK_VERSION, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_params(info, data, node, map);
 	return r;
 }
 
 int
-test_CK_TOKEN_INFO(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_TOKEN_INFO(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	CK_TOKEN_INFO_PTR info_arg = (CK_TOKEN_INFO_PTR)ptr;
 	int r;
 	struct prop_check_map prop_map[] = {
-		{"MaxSessionCount", &info_arg->ulMaxSessionCount, NULL, test_CK_ULONG_prop},
-		{"SessionCount", &info_arg->ulSessionCount, NULL, test_CK_ULONG_prop},
-		{"MaxRwSessionCount", &info_arg->ulMaxRwSessionCount, NULL, test_CK_ULONG_prop},
-		{"RwSessionCount", &info_arg->ulRwSessionCount, NULL, test_CK_ULONG_prop},
-		{"MaxPinLen", &info_arg->ulMaxPinLen, NULL, test_CK_ULONG_prop},
-		{"MinPinLen", &info_arg->ulMinPinLen, NULL, test_CK_ULONG_prop},
-		{"TotalPublicMemory", &info_arg->ulTotalPublicMemory, NULL, test_CK_ULONG_prop},
-		{"FreePublicMemory", &info_arg->ulFreePublicMemory, NULL, test_CK_ULONG_prop},
-		{"TotalPrivateMemory", &info_arg->ulTotalPrivateMemory, NULL, test_CK_ULONG_prop},
-		{"FreePrivateMemory", &info_arg->ulFreePrivateMemory, NULL, test_CK_ULONG_prop},
-		{NULL, NULL, NULL, NULL}
+		{"MaxSessionCount", &info_arg->ulMaxSessionCount, NULL, test_CK_ULONG_prop, false},
+		{"SessionCount", &info_arg->ulSessionCount, NULL, test_CK_ULONG_prop, false},
+		{"MaxRwSessionCount", &info_arg->ulMaxRwSessionCount, NULL, test_CK_ULONG_prop, false},
+		{"RwSessionCount", &info_arg->ulRwSessionCount, NULL, test_CK_ULONG_prop, false},
+		{"MaxPinLen", &info_arg->ulMaxPinLen, NULL, test_CK_ULONG_prop, false},
+		{"MinPinLen", &info_arg->ulMinPinLen, NULL, test_CK_ULONG_prop, false},
+		{"TotalPublicMemory", &info_arg->ulTotalPublicMemory, NULL, test_CK_ULONG_prop, false},
+		{"FreePublicMemory", &info_arg->ulFreePublicMemory, NULL, test_CK_ULONG_prop, false},
+		{"TotalPrivateMemory", &info_arg->ulTotalPrivateMemory, NULL, test_CK_ULONG_prop, false},
+		{"FreePrivateMemory", &info_arg->ulFreePrivateMemory, NULL, test_CK_ULONG_prop, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	CK_ULONG label_len = 32;
 	CK_ULONG manufacturerID_len = 32;
@@ -194,15 +205,15 @@ test_CK_TOKEN_INFO(struct test_info *info, struct internal_data **data, xmlNode 
 	CK_ULONG serialNumber_len = 16;
 	CK_ULONG utcTime_len = 16;
 	struct param_check_map map[] = {
-		{"label", &info_arg->label, &label_len, test_CK_UTF8CHAR_PTR},
-		{"ManufacturerID", &info_arg->manufacturerID, &manufacturerID_len, test_CK_UTF8CHAR_PTR},
-		{"model", &info_arg->model, &model_len, test_CK_UTF8CHAR_PTR},
-		{"serialNumber", &info_arg->serialNumber, &serialNumber_len, test_CK_CHAR_PTR},
-		{"Flags", &info_arg->flags, NULL, test_CK_FLAGS},
-		{"HardwareVersion", &info_arg->hardwareVersion, NULL, test_CK_VERSION},
-		{"FirmwareVersion", &info_arg->firmwareVersion, NULL, test_CK_VERSION},
-		{"utcTime", &info_arg->utcTime, &utcTime_len, test_CK_CHAR_PTR},
-		{NULL, NULL, NULL, NULL}
+		{"label", &info_arg->label, &label_len, test_CK_UTF8CHAR_PTR, false},
+		{"ManufacturerID", &info_arg->manufacturerID, &manufacturerID_len, test_CK_UTF8CHAR_PTR, true},
+		{"model", &info_arg->model, &model_len, test_CK_UTF8CHAR_PTR, false},
+		{"serialNumber", &info_arg->serialNumber, &serialNumber_len, test_CK_CHAR_PTR, false},
+		{"Flags", &info_arg->flags, NULL, test_CK_FLAGS, false},
+		{"HardwareVersion", &info_arg->hardwareVersion, NULL, test_CK_VERSION, false},
+		{"FirmwareVersion", &info_arg->firmwareVersion, NULL, test_CK_VERSION, false},
+		{"utcTime", &info_arg->utcTime, &utcTime_len, test_CK_CHAR_PTR, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 
 	r = test_props(info, data, node, prop_map);
@@ -214,13 +225,14 @@ test_CK_TOKEN_INFO(struct test_info *info, struct internal_data **data, xmlNode 
 }
 
 int
-test_CK_SESSION_HANDLE(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_SESSION_HANDLE(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	CK_SESSION_HANDLE_PTR session = (CK_SESSION_HANDLE_PTR)ptr;
 	int r;
 	struct prop_check_map prop_map[] = {
-		{"value", session, NULL, test_CK_ULONG_prop},
-		{NULL, NULL, NULL, NULL}
+		{"value", session, NULL, test_CK_ULONG_prop, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 
 	r = test_props(info, data, node, prop_map);
@@ -228,18 +240,19 @@ test_CK_SESSION_HANDLE(struct test_info *info, struct internal_data **data, xmlN
 }
 
 int
-test_CK_MECHANISM_INFO(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_MECHANISM_INFO(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	CK_MECHANISM_INFO_PTR mechanism_info = (CK_MECHANISM_INFO_PTR)ptr;
 	int r;
 	struct prop_check_map prop_map[] = {
-		{"MinKeySize", &mechanism_info->ulMinKeySize, NULL, test_CK_ULONG_prop},
-		{"MaxKeySize", &mechanism_info->ulMaxKeySize, NULL, test_CK_ULONG_prop},
-		{NULL, NULL, NULL, NULL}
+		{"MinKeySize", &mechanism_info->ulMinKeySize, NULL, test_CK_ULONG_prop, false},
+		{"MaxKeySize", &mechanism_info->ulMaxKeySize, NULL, test_CK_ULONG_prop, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	struct param_check_map param_map[] = {
-		{"Flags", &mechanism_info->flags, NULL, test_CK_FLAGS},
-		{NULL, NULL, NULL, NULL}
+		{"Flags", &mechanism_info->flags, NULL, test_CK_FLAGS, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_props(info, data, node, prop_map);
 	if (r != PKCS11TEST_SUCCESS && r != PKCS11TEST_DATA_NOT_FOUND) {
@@ -251,9 +264,10 @@ test_CK_MECHANISM_INFO(struct test_info *info, struct internal_data **data, xmlN
 
 /* List of structures */
 static int
-test_CK_SLOT_ID_list(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_SLOT_ID_list(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
-	CK_SLOT_ID_PTR slot_list = (CK_SLOT_ID_PTR)ptr;
+	CK_SLOT_ID_PTR slot_list = *((CK_SLOT_ID_PTR *)ptr);
 	CK_SLOT_ID expected_slot = 0;
 	CK_BBOOL found = CK_FALSE;
 	int r = PKCS11TEST_SUCCESS;
@@ -275,13 +289,14 @@ test_CK_SLOT_ID_list(struct test_info *info, struct internal_data **data, xmlNod
 			return PKCS11TEST_SUCCESS;
 		}
 		*((CK_ULONG_PTR)(new_data)->data) = slot_list[index];
+		log("\t\t\tSlot ID stored");
 		return PKCS11TEST_SUCCESS;
 	}
 	/* go over slot ID list assure there is some item with that value only once */
 	for (CK_ULONG i = 0; i < *length; i++) {
 		if (slot_list[i] == expected_slot && found == CK_FALSE) {
 			found = CK_TRUE;
-			log("Slot ID found");
+			log("\t\t\tSlot ID found");
 		} else if (slot_list[i] == expected_slot && found == CK_TRUE) {
 			error_log("Slot ID %lu found more times", expected_slot);
 		}
@@ -293,17 +308,18 @@ test_CK_SLOT_ID_list(struct test_info *info, struct internal_data **data, xmlNod
 }
 
 int
-test_CK_SLOT_ID_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_SLOT_ID_PTR(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	int r;
 	struct prop_check_map prop_map[] = {
-		{"length", length, NULL, test_CK_ULONG_prop},
-		{NULL, NULL, NULL, NULL}
+		{"length", length, NULL, test_CK_ULONG_prop, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	CK_SLOT_ID_PTR slot_id_list = (CK_SLOT_ID_PTR)ptr;
 	struct param_check_map map[] = {
-		{"SlotID", slot_id_list, length, test_CK_SLOT_ID_list},
-		{NULL, NULL, NULL, NULL}
+		{"SlotID", slot_id_list, length, test_CK_SLOT_ID_list, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_props(info, data, node, prop_map);
 	if (r != PKCS11TEST_SUCCESS && r != PKCS11TEST_DATA_NOT_FOUND) {
@@ -314,9 +330,10 @@ test_CK_SLOT_ID_PTR(struct test_info *info, struct internal_data **data, xmlNode
 }
 
 static int
-test_CK_OBJECT_HANDLE_list(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_OBJECT_HANDLE_list(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
-	CK_OBJECT_HANDLE_PTR object_list = (CK_MECHANISM_TYPE_PTR)ptr;
+	CK_OBJECT_HANDLE_PTR object_list = *((CK_MECHANISM_TYPE_PTR *)ptr);
 	CK_OBJECT_HANDLE expected_object = 0;
 	CK_BBOOL found = CK_FALSE;
 	int r = PKCS11TEST_SUCCESS;
@@ -356,22 +373,24 @@ test_CK_OBJECT_HANDLE_list(struct test_info *info, struct internal_data **data, 
 }
 
 int
-test_CK_OBJECT_HANDLE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_OBJECT_HANDLE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	CK_OBJECT_HANDLE_PTR object_list = (CK_OBJECT_HANDLE_PTR)ptr;
 	int r;
 	struct param_check_map map[] = {
-		{"Object", object_list, length, test_CK_OBJECT_HANDLE_list},
-		{NULL, NULL, NULL, NULL}
+		{"Object", object_list, length, test_CK_OBJECT_HANDLE_list, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_params(info, data, node, map);
 	return r;
 }
 
 static int
-test_CK_ATTRIBUTE_list(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_ATTRIBUTE_list(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
-	CK_ATTRIBUTE_PTR template = (CK_ATTRIBUTE_PTR)ptr;
+	CK_ATTRIBUTE_PTR template = *((CK_ATTRIBUTE_PTR *)ptr);
 	CK_ATTRIBUTE expected_attribute = { 0 };
 	CK_BBOOL found = CK_FALSE;
 	int r;
@@ -390,13 +409,13 @@ test_CK_ATTRIBUTE_list(struct test_info *info, struct internal_data **data, xmlN
 			/* we've got hit */
 			switch (expected_attribute.type) {
 				case CKA_CLASS:
-					r = test_CK_OBJECT_CLASS(info, data, node, ptr, length);
+					r = test_CK_OBJECT_CLASS(info, data, node, ptr, length, false);
 					break;
 				case CKA_KEY_TYPE:
-					r = test_CK_KEY_TYPE(info, data, node, ptr, NULL);
+					r = test_CK_KEY_TYPE(info, data, node, ptr, NULL, false);
 					break;
 				case CKA_LABEL:
-					r = test_CK_CHAR_PTR(info, data, node, ptr, NULL); // TODO length
+					r = test_CK_CHAR_PTR(info, data, node, ptr, NULL, false); // TODO length
 					break;
 				case CKA_TOKEN:
 				case CKA_PRIVATE:
@@ -404,16 +423,16 @@ test_CK_ATTRIBUTE_list(struct test_info *info, struct internal_data **data, xmlN
 				case CKA_SENSITIVE:
 				case CKA_ENCRYPT:
 				case CKA_DECRYPT:
-					r = test_CK_BYTE_prop(info, data, node, (const char **)"value", ptr, NULL);
+					r = test_CK_BYTE_prop(info, data, node, (const char **)"value", ptr, NULL, false);
 					break;
 				case CKA_VALUE_LEN:
-					r = test_CK_ULONG_prop(info, data, node, (const char **)"value", ptr, NULL);
+					r = test_CK_ULONG_prop(info, data, node, (const char **)"value", ptr, NULL, false);
 					break;
 				case CKA_VALUE:
 				case CKA_MODULUS:
 				case CKA_PUBLIC_EXPONENT:
 					*((CK_BYTE_PTR *)ptr) = NULL_PTR;
-					r = test_CK_BYTE_PTR(info, data, node, ptr, NULL); // TODO: length
+					r = test_CK_BYTE_PTR(info, data, node, ptr, NULL, false); // TODO: length
 					break;
 				default:
 					error_log("Attribute type not known");
@@ -432,22 +451,24 @@ test_CK_ATTRIBUTE_list(struct test_info *info, struct internal_data **data, xmlN
 }
 
 int
-test_CK_ATTRIBUTE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_ATTRIBUTE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	CK_ATTRIBUTE_PTR template = (CK_ATTRIBUTE_PTR)ptr;
 	int r;
 	struct param_check_map map[] = {
-		{"Attribute", template, length, test_CK_ATTRIBUTE_list},
-		{NULL, NULL, NULL, NULL}
+		{"Attribute", template, length, test_CK_ATTRIBUTE_list, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_params(info, data, node, map);
 	return r;
 }
 
 static int
-test_CK_MECHANISM_TYPE_list(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_MECHANISM_TYPE_list(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
-	CK_MECHANISM_TYPE_PTR mechanism_list = (CK_MECHANISM_TYPE_PTR)ptr;
+	CK_MECHANISM_TYPE_PTR mechanism_list = *((CK_MECHANISM_TYPE_PTR *)ptr);
 	CK_MECHANISM_TYPE expected_mechanism = 0;
 	CK_BBOOL found = CK_FALSE;
 	int r = PKCS11TEST_SUCCESS;
@@ -487,13 +508,14 @@ test_CK_MECHANISM_TYPE_list(struct test_info *info, struct internal_data **data,
 }
 
 int
-test_CK_MECHANISM_TYPE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_MECHANISM_TYPE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node,
+		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	CK_MECHANISM_TYPE_PTR mechanism_list = *((CK_MECHANISM_TYPE_PTR *)ptr);
 	int r;
 	struct param_check_map param_map[] = {
-		{"Type", mechanism_list, length, test_CK_MECHANISM_TYPE_list},
-		{NULL, NULL, NULL, NULL}
+		{"Type", mechanism_list, length, test_CK_MECHANISM_TYPE_list, false},
+		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_params(info, data, node, param_map);
 	return r;

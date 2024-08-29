@@ -11,7 +11,7 @@ test_props(struct test_info *info, struct internal_data **data, xmlNode *node, s
 			prop_check_func func = map[i].check_func;
 			if (func != NULL) {
 				log("\t\t\t\"%s\": Checking property against actual return value.", map[i].name);
-				func(info, data, node, &map[i].name, map[i].ptr, map[i].length);
+				func(info, data, node, &map[i].name, map[i].ptr, map[i].length, map[i].variable);
 				if (r != PKCS11TEST_SUCCESS) {
 					return r;
 				}
@@ -22,7 +22,8 @@ test_props(struct test_info *info, struct internal_data **data, xmlNode *node, s
 }
 
 int
-test_CK_BYTE_prop(struct test_info *info, struct internal_data **data, xmlNode *node, const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_BYTE_prop(struct test_info *info, struct internal_data **data, xmlNode *node,
+		const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	xmlChar *value = NULL;
 	CK_BYTE actual = *((CK_ULONG_PTR) ptr);
@@ -49,7 +50,7 @@ test_CK_BYTE_prop(struct test_info *info, struct internal_data **data, xmlNode *
 		} else {
 			/* Value found, check against actual value*/
 			log("\t\t\t\t\tFound stored %s = %x.", (char *)value, actual);
-			check_CK_BYTE(*((CK_BYTE_PTR)data_length->data), actual);
+			check_CK_BYTE(*((CK_BYTE_PTR)data_length->data), actual, false);
 		}
 		*((CK_BYTE_PTR)(*data)->data) = actual;
 	} else {
@@ -58,7 +59,7 @@ test_CK_BYTE_prop(struct test_info *info, struct internal_data **data, xmlNode *
 		if ((r = get_CK_BYTE((char *)value, &expected)) != PKCS11TEST_SUCCESS) {
 			return r;
 		}
-		check_CK_BYTE(expected, actual);
+		check_CK_BYTE(expected, actual, variable);
 	}
 	return PKCS11TEST_SUCCESS;
 }
@@ -87,6 +88,7 @@ test_num_value(struct test_info *info, struct internal_data **data, xmlNode *nod
 				return PKCS11TEST_INTERNAL_ERROR;
 			}
 			strcpy(stored_data->identifier, (char *)value);
+			memcpy(stored_data->data, &actual, sizeof(CK_ULONG));
 			internal_data_add(data, stored_data);
 		} else {
 			/* Value found, check against actual value */
@@ -106,37 +108,43 @@ test_num_value(struct test_info *info, struct internal_data **data, xmlNode *nod
 }
 
 int
-test_CK_ULONG_prop(struct test_info *info, struct internal_data **data, xmlNode *node, const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_ULONG_prop(struct test_info *info, struct internal_data **data, xmlNode *node,
+		const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	return test_num_value(info, data, node, name, ptr, length, INT);
 }
 
 int
-test_CK_RV_prop(struct test_info *info, struct internal_data **data, xmlNode *node, const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_RV_prop(struct test_info *info, struct internal_data **data, xmlNode *node,
+		const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	return test_num_value(info, data, node, name, ptr, length, RV_T);
 }
 
 int
-test_CK_FLAGS_prop(struct test_info *info, struct internal_data **data, xmlNode *node, const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_FLAGS_prop(struct test_info *info, struct internal_data **data, xmlNode *node,
+		const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	return test_num_value(info, data, node, name, ptr, length, FLG_T);
 }
 
 int
-test_CK_OBJECT_CLASS_prop(struct test_info *info, struct internal_data **data, xmlNode *node, const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_OBJECT_CLASS_prop(struct test_info *info, struct internal_data **data, xmlNode *node,
+		const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	return test_num_value(info, data, node, name, ptr, length, OBJ_T);
 }
 
 int
-test_CK_KEY_TYPE_prop(struct test_info *info, struct internal_data **data, xmlNode *node, const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_KEY_TYPE_prop(struct test_info *info, struct internal_data **data, xmlNode *node,
+		const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	return test_num_value(info, data, node, name, ptr, length, KEY_T);
 }
 
 int
-test_CK_UTF8CHAR_PTR_prop(struct test_info *info, struct internal_data **data, xmlNode *node, const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_UTF8CHAR_PTR_prop(struct test_info *info, struct internal_data **data, xmlNode *node,
+		const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	xmlChar *value = NULL;
 	CK_UTF8CHAR_PTR actual = (CK_UTF8CHAR_PTR) ptr;
@@ -163,7 +171,7 @@ test_CK_UTF8CHAR_PTR_prop(struct test_info *info, struct internal_data **data, x
 		} else {
 			/* Value found, check against actual value*/
 			log("\t\t\t\t\tFound stored %s.", (char *)value);
-			check_memory(stored_data->data, actual, *length);
+			check_memory(stored_data->data, actual, *length, false);
 		}
 		stored_data->data = actual;
 		stored_data->length = *length;
@@ -173,13 +181,14 @@ test_CK_UTF8CHAR_PTR_prop(struct test_info *info, struct internal_data **data, x
 		if ((r = get_CK_UTF8CHAR_PTR((char *)value, &expected, length)) != PKCS11TEST_SUCCESS) {
 			return r;
 		}
-		check_memory(expected, actual, *length);
+		check_memory(expected, actual, *length, variable);
 	}
 	return PKCS11TEST_SUCCESS;
 }
 
 int
-test_CK_CHAR_PTR_prop(struct test_info *info, struct internal_data **data, xmlNode *node, const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_CHAR_PTR_prop(struct test_info *info, struct internal_data **data, xmlNode *node,
+		const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	xmlChar *value = NULL;
 	CK_CHAR_PTR actual = (CK_CHAR_PTR) ptr;
@@ -205,7 +214,7 @@ test_CK_CHAR_PTR_prop(struct test_info *info, struct internal_data **data, xmlNo
 		} else {
 			/* Value found, check against actual value*/
 			log("\t\t\t\t\tFound stored %s.", (char *)value);
-			check_memory(stored_data->data, actual, *length);
+			check_memory(stored_data->data, actual, *length, false);
 		}
 		stored_data->data = actual;
 		stored_data->length = *length;
@@ -215,13 +224,14 @@ test_CK_CHAR_PTR_prop(struct test_info *info, struct internal_data **data, xmlNo
 		if ((r = get_CK_CHAR_PTR((char *)value, &expected, length)) != PKCS11TEST_SUCCESS) {
 			return r;
 		}
-		check_memory(expected, actual, *length);
+		check_memory(expected, actual, *length, variable);
 	}
 	return PKCS11TEST_SUCCESS;
 }
 
 int
-test_CK_BYTE_PTR_prop(struct test_info *info, struct internal_data **data, xmlNode *node, const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length)
+test_CK_BYTE_PTR_prop(struct test_info *info, struct internal_data **data, xmlNode *node,
+		const char **name, CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
 	xmlChar *value = NULL;
 	CK_BYTE_PTR actual = *((CK_BYTE_PTR *) ptr);
@@ -248,7 +258,7 @@ test_CK_BYTE_PTR_prop(struct test_info *info, struct internal_data **data, xmlNo
 		} else {
 			/* Value found, check against actual value*/
 			log("\t\t\t\t\tFound stored %s.", (char *)value);
-			check_memory(stored_data->data, actual, *length);
+			check_memory(stored_data->data, actual, *length, false);
 		}
 		stored_data->data = actual;
 		stored_data->length = *length;
@@ -258,7 +268,7 @@ test_CK_BYTE_PTR_prop(struct test_info *info, struct internal_data **data, xmlNo
 		if ((r = get_CK_BYTE_PTR((char *)value, &expected, length)) != PKCS11TEST_SUCCESS) {
 			return r;
 		}
-		check_memory(expected, actual, *length);
+		check_memory(expected, actual, *length, variable);
 	}
 	return PKCS11TEST_SUCCESS;
 }

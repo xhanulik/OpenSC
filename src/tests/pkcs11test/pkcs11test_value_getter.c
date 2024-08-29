@@ -20,39 +20,35 @@ get_CK_BYTE(const char *value, CK_BYTE_PTR result)
 }
 
 int
-get_CK_FLAGS(char *value, CK_FLAGS *result)
+get_num_value(char *value, CK_ULONG_PTR result, enum ck_type type)
 {
-	char *token;
-	char *delimiter = "| ";
-	CK_FLAGS flags = 0x0;
-	int r;
-
-	token = strtok(value, delimiter);
-    
-	while (token != NULL) {
-		CK_FLAGS new_flag = 0;
-		r = lookup_string(FLG_T, token, &new_flag);
-		if (r != PKCS11TEST_SUCCESS) {
-			return r;
-		}
-		flags |= new_flag;
-		token = strtok(NULL, delimiter);
-	}
-	*result = flags;
-	return PKCS11TEST_SUCCESS;
-}
-
-int
-get_num_value(char *value, CK_ULONG *result, enum ck_type type)
-{
+	unsigned long r;
 	if (type == INT) {
-		unsigned long r;
 		char *end = NULL;
 		r = strtoul(value, &end, 10);
 		if (*end != '\0') {
 			return PKCS11TEST_INVALID_ARGUMENTS;
 		}
 		*result = (CK_ULONG)r;
+	} else if (type == FLG_T) {
+		char *token = NULL;
+
+		// try to convert directly first
+		*result = strtol(value, &token, 16);
+		if (*token == '\0') {
+			return PKCS11TEST_SUCCESS;
+		}
+		// convert by names
+		token = strtok(value, "|");
+		while (token != NULL) {
+			CK_ULONG current = 0;
+			if ((r = lookup_string(type, (const char *) token, &current)) != PKCS11TEST_SUCCESS) {
+				return r;
+			}
+			*result |= current;
+			token = strtok(NULL, "|");
+		}
+		return PKCS11TEST_SUCCESS;
 	} else {
 		return lookup_string(type, (const char *) value, result);
 	}

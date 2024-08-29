@@ -406,9 +406,9 @@ static enum_specs ck_err_s[] = {
 
 /* TBD */
 static enum_specs ck_usr_s[] = {
-	{ CKU_SO,   "CKU_SO" },
-	{ CKU_USER, "CKU_USER" },
-	{ CKU_CONTEXT_SPECIFIC, "CKU_CONTEXT_SPECIFIC" }
+	{ CKU_SO,   "SO" },
+	{ CKU_USER, "USER" },
+	{ CKU_CONTEXT_SPECIFIC, "CONTEXT_SPECIFIC" }
 };
 
 static enum_specs ck_sta_s[] = {
@@ -450,27 +450,27 @@ static enum_specs ck_flags[] = {
 	{ CKF_SO_PIN_LOCKED, "SO_PIN_LOCKED" },
 	{ CKF_SO_PIN_TO_BE_CHANGED, "SO_PIN_TO_BE_CHANGED" },
 	/* Session info flags */
-	{ CKF_RW_SESSION, "CKF_RW_SESSION" },
-	{ CKF_SERIAL_SESSION, "CKF_SERIAL_SESSION" },
+	{ CKF_RW_SESSION, "RW_SESSION" },
+	{ CKF_SERIAL_SESSION, "SERIAL_SESSION" },
 	/* Slot info flags */
-	{ CKF_TOKEN_PRESENT, "CKF_TOKEN_PRESENT" },
-	{ CKF_REMOVABLE_DEVICE, "CKF_REMOVABLE_DEVICE" },
-	{ CKF_HW_SLOT, "CKF_HW_SLOT" },
+	{ CKF_TOKEN_PRESENT, "TOKEN_PRESENT" },
+	{ CKF_REMOVABLE_DEVICE, "REMOVABLE_DEVICE" },
+	{ CKF_HW_SLOT, "HW_SLOT" },
 	/* Mechanism Information Flags */
-	{ CKF_HW, "CKF_HW" },
-	{ CKF_ENCRYPT, "CKF_ENCRYPT" },
-	{ CKF_DECRYPT, "CKF_DECRYPT" },
-	{ CKF_DIGEST, "CKF_DIGEST" },
-	{ CKF_SIGN, "CKF_SIGN" },
-	{ CKF_SIGN_RECOVER, "CKF_SIGN_RECOVER" },
-	{ CKF_VERIFY, "CKF_VERIFY" },
-	{ CKF_VERIFY_RECOVER, "CKF_VERIFY_RECOVER" },
-	{ CKF_GENERATE, "CKF_GENERATE" },
-	{ CKF_GENERATE_KEY_PAIR, "CKF_GENERATE_KEY_PAIR" },
-	{ CKF_WRAP, "CKF_WRAP" },
-	{ CKF_UNWRAP, "CKF_UNWRAP" },
-	{ CKF_DERIVE, "CKF_DERIVE" },
-	{ CKF_EXTENSION, "CKF_EXTENSION" },
+	{ CKF_HW, "HW" },
+	{ CKF_ENCRYPT, "ENCRYPT" },
+	{ CKF_DECRYPT, "DECRYPT" },
+	{ CKF_DIGEST, "DIGEST" },
+	{ CKF_SIGN, "SIGN" },
+	{ CKF_SIGN_RECOVER, "SIGN_RECOVER" },
+	{ CKF_VERIFY, "VERIFY" },
+	{ CKF_VERIFY_RECOVER, "VERIFY_RECOVER" },
+	{ CKF_GENERATE, "GENERATE" },
+	{ CKF_GENERATE_KEY_PAIR, "GENERATE_KEY_PAIR" },
+	{ CKF_WRAP, "WRAP" },
+	{ CKF_UNWRAP, "UNWRAP" },
+	{ CKF_DERIVE, "DERIVE" },
+	{ CKF_EXTENSION, "EXTENSION" },
 };
 
 static enum_specs ck_attribute_specs[] = {
@@ -607,6 +607,7 @@ lookup_string_spec(enum_spec *spec, const char *value, CK_ULONG_PTR result)
 			return PKCS11TEST_SUCCESS;
 		}
 	}
+	error_log("Value for string \"%s\" not found", value);
 	return PKCS11TEST_INVALID_VALUE_NAME;
 }
 
@@ -619,6 +620,7 @@ lookup_enum_spec(enum_spec *spec, CK_ULONG value, char **result)
 			return PKCS11TEST_SUCCESS;
 		}
 	}
+	error_log("Value for \"%ld\" not found", value);
 	return PKCS11TEST_INVALID_VALUE_NAME;
 }
 

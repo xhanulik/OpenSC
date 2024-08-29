@@ -27,9 +27,11 @@ check_num_value(CK_ULONG expected, CK_ULONG actual, enum ck_type type)
 }
 
 int
-check_memory(CK_BYTE_PTR expected, CK_BYTE_PTR actual, size_t length)
+check_memory(CK_BYTE_PTR expected, CK_BYTE_PTR actual, size_t length, bool variable)
 {
-	if (memcmp(expected, actual, length) != 0) {
+	if (variable) {
+		log("\t\t\t\tVariable memory value");
+	} else if (memcmp(expected, actual, length) != 0) {
 		error_log("\t\t\t\tMemory values differ");
 	} else {
 		log("\t\t\t\tMemory value is correct");
@@ -38,9 +40,11 @@ check_memory(CK_BYTE_PTR expected, CK_BYTE_PTR actual, size_t length)
 }
 
 int
-check_CK_BYTE(CK_BYTE expected, CK_BYTE actual)
+check_CK_BYTE(CK_BYTE expected, CK_BYTE actual, bool variable)
 {
-	if (expected != actual) {
+	if (variable) {
+		log("\t\t\t\tVariable byte value");
+	} else if (expected != actual) {
 		error_log("\t\t\t\tByte values differ: expected %02x, but got %02x", expected, actual);
 	} else {
 		log("\t\t\t\tByte value is correct");

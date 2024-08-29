@@ -71,7 +71,7 @@ parse_num_value(struct test_info *info, struct internal_data **data,
 		if (value[0] == '$') {
 			struct internal_data *stored_data = internal_data_find(*data, (char *)value);
 			if (stored_data == NULL) {
-				error_log("Stored %s not found.", (char *) value);
+				error_log("\t\t\tStored %s not found.", (char *) value);
 				return PKCS11TEST_DATA_NOT_FOUND;
 			}
 			*((CK_ULONG *)ptr) = *((CK_ULONG_PTR)stored_data->data);
