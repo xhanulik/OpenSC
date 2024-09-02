@@ -48,5 +48,6 @@ enum ck_type {
 
 int lookup_string(CK_ULONG type, const char *value, CK_ULONG_PTR result);
 int lookup_enum(CK_ULONG type, CK_ULONG value, char **result);
+int lookup_flags(CK_ULONG value, char result[]);
 
 #endif // PKCS11TEST_STR_H

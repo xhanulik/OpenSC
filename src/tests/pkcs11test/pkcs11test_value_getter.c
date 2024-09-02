@@ -30,6 +30,7 @@ get_num_value(char *value, CK_ULONG_PTR result, enum ck_type type)
 			return PKCS11TEST_INVALID_ARGUMENTS;
 		}
 		*result = (CK_ULONG)r;
+		return PKCS11TEST_SUCCESS;
 	} else if (type == FLG_T) {
 		char *token = NULL;
 

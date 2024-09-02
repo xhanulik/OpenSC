@@ -503,7 +503,7 @@ parse_CK_MECHANISM_TYPE_PTR(struct test_info *info, struct internal_data **data,
 			log("Empty CK_OBJECT_HANDLE list");
 			return PKCS11TEST_SUCCESS; 
 		}
-		mechanism_list = calloc(mechanism_list_len, sizeof(CK_OBJECT_HANDLE));
+		mechanism_list = calloc(mechanism_list_len, sizeof(CK_MECHANISM_TYPE));
 		*((CK_MECHANISM_TYPE_PTR *)ptr) = mechanism_list;
 	} else {
 		r = parse_params(info, data, node, param_map);

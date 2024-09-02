@@ -20,6 +20,7 @@
 #define PKCS11TEST_PARAM_ABSENT   -1108
 #define PKCS11TEST_PROP_ABSENT   -1109
 #define PKCS11TEST_INVALID_VALUE_NAME   -1110
+#define PKCS11TEST_DUPLICATE_VALUE   -1111
 
 #define log(fmt, ...) \
 	do { \

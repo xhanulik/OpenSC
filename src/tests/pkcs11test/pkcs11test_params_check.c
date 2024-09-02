@@ -103,7 +103,7 @@ test_CK_CHAR_PTR(struct test_info *info, struct internal_data **data, xmlNode *n
 	CK_CHAR_PTR *exp_chars = (CK_CHAR_PTR *)ptr;
 	int r;
 	struct prop_check_map prop_map[] = {
-		{"value", exp_chars, length, test_CK_CHAR_PTR_prop, false},
+		{"value", exp_chars, length, test_CK_CHAR_PTR_prop, variable},
 		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_props(info, data, node, prop_map);
@@ -117,7 +117,7 @@ test_CK_BYTE_PTR(struct test_info *info, struct internal_data **data, xmlNode *n
 	CK_BYTE_PTR *exp_bytes = (CK_BYTE_PTR *)ptr;
 	int r;
 	struct prop_check_map prop_map[] = {
-		{"value", exp_bytes, length, test_CK_BYTE_PTR_prop, false},
+		{"value", exp_bytes, length, test_CK_BYTE_PTR_prop, variable},
 		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_props(info, data, node, prop_map);
@@ -169,11 +169,11 @@ test_CK_SLOT_INFO(struct test_info *info, struct internal_data **data, xmlNode *
 	CK_ULONG slotDescription_len = 64;
 	int r;
 	struct param_check_map map[] = {
-		{"SlotDescription", &info_arg->slotDescription, &slotDescription_len, test_CK_UTF8CHAR_PTR, false},
+		{"SlotDescription", &info_arg->slotDescription, &slotDescription_len, test_CK_UTF8CHAR_PTR, true},
 		{"ManufacturerID", &info_arg->manufacturerID, &manufacturerID_len, test_CK_UTF8CHAR_PTR, true},
 		{"Flags", &info_arg->flags, NULL, test_CK_FLAGS, false},
-		{"HardwareVersion", &info_arg->hardwareVersion, NULL, test_CK_VERSION, false},
-		{"FirmwareVersion", &info_arg->firmwareVersion, NULL, test_CK_VERSION, false},
+		{"HardwareVersion", &info_arg->hardwareVersion, NULL, test_CK_VERSION, true},
+		{"FirmwareVersion", &info_arg->firmwareVersion, NULL, test_CK_VERSION, true},
 		{NULL, NULL, NULL, NULL, 0}
 	};
 	r = test_params(info, data, node, map);
@@ -205,14 +205,14 @@ test_CK_TOKEN_INFO(struct test_info *info, struct internal_data **data, xmlNode 
 	CK_ULONG serialNumber_len = 16;
 	CK_ULONG utcTime_len = 16;
 	struct param_check_map map[] = {
-		{"label", &info_arg->label, &label_len, test_CK_UTF8CHAR_PTR, false},
+		{"label", &info_arg->label, &label_len, test_CK_UTF8CHAR_PTR, true},
 		{"ManufacturerID", &info_arg->manufacturerID, &manufacturerID_len, test_CK_UTF8CHAR_PTR, true},
-		{"model", &info_arg->model, &model_len, test_CK_UTF8CHAR_PTR, false},
-		{"serialNumber", &info_arg->serialNumber, &serialNumber_len, test_CK_CHAR_PTR, false},
+		{"model", &info_arg->model, &model_len, test_CK_UTF8CHAR_PTR, true},
+		{"serialNumber", &info_arg->serialNumber, &serialNumber_len, test_CK_CHAR_PTR, true},
 		{"Flags", &info_arg->flags, NULL, test_CK_FLAGS, false},
-		{"HardwareVersion", &info_arg->hardwareVersion, NULL, test_CK_VERSION, false},
-		{"FirmwareVersion", &info_arg->firmwareVersion, NULL, test_CK_VERSION, false},
-		{"utcTime", &info_arg->utcTime, &utcTime_len, test_CK_CHAR_PTR, false},
+		{"HardwareVersion", &info_arg->hardwareVersion, NULL, test_CK_VERSION, true},
+		{"FirmwareVersion", &info_arg->firmwareVersion, NULL, test_CK_VERSION, true},
+		{"utcTime", &info_arg->utcTime, &utcTime_len, test_CK_CHAR_PTR, true},
 		{NULL, NULL, NULL, NULL, 0}
 	};
 
@@ -474,14 +474,14 @@ test_CK_MECHANISM_TYPE_list(struct test_info *info, struct internal_data **data,
 	int r = PKCS11TEST_SUCCESS;
 
 	/* get value from node - it is direct value or try to find the stored one */
-	r = parse_CK_ULONG(info, data, node, &expected_mechanism, NULL);
+	r = parse_CK_MECHANISM_TYPE(info, data, node, &expected_mechanism, NULL);
 	if (r == PKCS11TEST_DATA_NOT_FOUND) { /* not stored yet */
 		/* Just store and do not test returned value */
 		CK_ULONG index = 0;
 		xmlChar *value = xmlGetProp(node, (const xmlChar*)"value");
 		extract_index((char *)value, &index);
 		if (index >= *length) {
-			error_log("Too short mechanism list: expected at least %lu, got %lu.", index + 1, *length);
+			error_log("\t\t\t\tToo short mechanism list: expected at least %lu, got %lu.", index + 1, *length);
 			return PKCS11TEST_SUCCESS;
 		}
 
@@ -496,13 +496,15 @@ test_CK_MECHANISM_TYPE_list(struct test_info *info, struct internal_data **data,
 	for (CK_ULONG i = 0; i < *length; i++) {
 		if (mechanism_list[i] == expected_mechanism && found == CK_FALSE) {
 			found = CK_TRUE;
-			log("Mechanism found");
+			log("\t\t\t\tMechanism %lu found", expected_mechanism);
+			r = PKCS11TEST_SUCCESS;
 		} else if (mechanism_list[i] == expected_mechanism && found == CK_TRUE) {
-			error_log("Mechanism %lu found more times", expected_mechanism);
+			error_log("\t\t\t\tMechanism %lu found more times", expected_mechanism);
+			r = PKCS11TEST_DUPLICATE_VALUE;
 		}
 	}
 	if (found == CK_FALSE) {
-		error_log("Mechanism %lu not found", expected_mechanism);
+		error_log("\t\t\t\tMechanism %lu not found", expected_mechanism);
 	}
 	return r;
 }
@@ -511,12 +513,19 @@ int
 test_CK_MECHANISM_TYPE_PTR(struct test_info *info, struct internal_data **data, xmlNode *node,
 		CK_VOID_PTR ptr, CK_ULONG_PTR length, bool variable)
 {
-	CK_MECHANISM_TYPE_PTR mechanism_list = *((CK_MECHANISM_TYPE_PTR *)ptr);
 	int r;
-	struct param_check_map param_map[] = {
-		{"Type", mechanism_list, length, test_CK_MECHANISM_TYPE_list, false},
+	struct prop_check_map prop_map[] = {
+		{"length", length, NULL, test_CK_ULONG_prop, false},
 		{NULL, NULL, NULL, NULL, 0}
 	};
+	struct param_check_map param_map[] = {
+		{"Type", ptr, length, test_CK_MECHANISM_TYPE_list, false},
+		{NULL, NULL, NULL, NULL, 0}
+	};
+	r = test_props(info, data, node, prop_map);
+	if (r != PKCS11TEST_SUCCESS && r != PKCS11TEST_DATA_NOT_FOUND) {
+		return r;
+	}
 	r = test_params(info, data, node, param_map);
 	return r;
 }
