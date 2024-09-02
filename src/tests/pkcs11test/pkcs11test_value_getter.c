@@ -33,12 +33,20 @@ get_num_value(char *value, CK_ULONG_PTR result, enum ck_type type)
 		return PKCS11TEST_SUCCESS;
 	} else if (type == FLG_T) {
 		char *token = NULL;
+		char *endptr;
 
-		// try to convert directly first
-		*result = strtol(value, &token, 16);
-		if (*token == '\0') {
+		// convert hexadecimal number
+		if (strstr(value, "0x") == value || strstr(value, "0X") == value) {
+			*result = strtol(value, &endptr, 16);
 			return PKCS11TEST_SUCCESS;
 		}
+
+		// convert decimal number
+		if (isdigit(*value) != 0) {
+			*result = strtol(value, &endptr, 10);
+			return PKCS11TEST_SUCCESS;
+		}
+		
 		// convert by names
 		token = strtok(value, "|");
 		while (token != NULL) {

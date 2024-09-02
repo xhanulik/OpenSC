@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <ctype.h>
 #include "pkcs11/pkcs11.h"
 
 #define PKCS11TEST_CALLING_FUNC 0x01
