@@ -844,7 +844,7 @@ again:
 		goto again;
 
 out:
-	if (pSlot)
+	if (rv == CKR_OK && pSlot)
 		*pSlot = slot_id;
 
 	/* Free allocated readers states holder */
