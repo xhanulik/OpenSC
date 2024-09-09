@@ -392,7 +392,10 @@ card_detect_all(void)
 
 	sc_log(context, "Detect all cards");
 	/* Detect cards in all initialized readers */
-	for (i=0; i< sc_ctx_get_reader_count(context); i++) {
+	if (sc_ctx_get_reader_count(context) == 0) {
+		sc_ctx_detect_readers(context);
+	}
+	for (i = 0; i < sc_ctx_get_reader_count(context); i++) {
 		sc_reader_t *reader = sc_ctx_get_reader(context, i);
 
 		if (reader->flags & SC_READER_REMOVED) {
