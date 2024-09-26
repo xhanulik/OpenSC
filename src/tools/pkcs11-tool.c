@@ -1273,7 +1273,6 @@ int main(int argc, char * argv[])
 
 	if (opt_test_hotplug) {
 		test_card_detection(0);
-		test_card_detection(1);
 	}
 
 	if (p11_num_slots == 0) {
@@ -8261,34 +8260,25 @@ static int test_random(CK_SESSION_HANDLE session)
 	return errors;
 }
 
+
 static int test_card_detection(int wait_for_event)
 {
-	char buffer[256];
 	CK_SLOT_ID slot_id;
 	CK_RV rv;
 
-	printf("Testing card detection using %s\n",
-		wait_for_event? "C_WaitForSlotEvent()" : "C_GetSlotList()");
-
 	while (1) {
-		printf("Please press return to continue, x to exit: ");
+		printf("Calling C_WaitForSlotEvent: ");
 		fflush(stdout);
-		if (fgets(buffer, sizeof(buffer), stdin) == NULL
-		|| buffer[0] == 'x')
-			break;
-
-		if (wait_for_event) {
-			printf("Calling C_WaitForSlotEvent: ");
-			fflush(stdout);
-			rv = p11->C_WaitForSlotEvent(0, &slot_id, NULL);
-			if (rv != CKR_OK) {
-				printf("failed.\n");
-				p11_perror("C_WaitForSlotEvent", rv);
-				return 1;
-			}
-			printf("event on slot 0x%lx\n", slot_id);
+		rv = p11->C_WaitForSlotEvent(1, &slot_id, NULL);
+		if (rv == CKR_NO_EVENT) {
+			printf("failed.\n");
+			p11_perror("C_WaitForSlotEvent", rv);
 		}
-		list_slots(0, 1, 1);
+		if (rv == CKR_OK) {
+			printf("event on slot 0x%lx\n", slot_id);
+			list_slots(0, 1, 1);
+			return 0;
+		}
 	}
 
 	return 0;
