@@ -369,7 +369,17 @@ CK_RV C_Initialize(CK_VOID_PTR pInitArgs)
 	}
 	list_attributes_seeker(&virtual_slots, slot_list_seeker);
 
-	card_detect_all();
+	// Add enough hot-plug slots for one reader
+	// TODO: regulate this with some config options (whether we allow it or not)
+	for (unsigned int j = 0; j < sc_pkcs11_conf.slots_per_card; j++) {
+		CK_RV rv = create_slot(NULL);
+		if (rv != CKR_OK) {
+			rv = CKR_GENERAL_ERROR;
+			goto out;
+		}
+	}
+
+	card_detect_all(1);
 
 out:
 	if (context != NULL)
@@ -521,7 +531,7 @@ CK_RV C_GetSlotList(CK_BBOOL       tokenPresent,  /* only slots with token prese
 
 	DEBUG_VSS(NULL, "C_GetSlotList after ctx_detect_readers");
 
-	card_detect_all();
+	card_detect_all(1);
 
 	if (list_empty(&virtual_slots)) {
 		sc_log(context, "returned 0 slots\n");
@@ -634,7 +644,7 @@ CK_RV C_GetSlotInfo(CK_SLOT_ID slotID, CK_SLOT_INFO_PTR pInfo)
 		 * before C_GetSlotInfo, as required by PKCS#11.  Initialize
 		 * virtual_slots to make things work and hope the caller knows what
 		 * it's doing... */
-		card_detect_all();
+		card_detect_all(1);
 	}
 
 	rv = slot_get_slot(slotID, &slot);

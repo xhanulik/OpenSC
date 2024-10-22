@@ -412,7 +412,7 @@ void sc_pkcs11_card_free(struct sc_pkcs11_card *p11card);
 
 /* Slot and card handling functions */
 CK_RV card_removed(sc_reader_t *reader);
-CK_RV card_detect_all(void);
+CK_RV card_detect_all(int create_slots);
 CK_RV create_slot(sc_reader_t *reader);
 void init_slot_info(CK_SLOT_INFO_PTR pInfo, sc_reader_t *reader);
 CK_RV card_detect(sc_reader_t *reader);

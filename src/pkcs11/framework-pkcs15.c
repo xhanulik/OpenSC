@@ -2206,7 +2206,7 @@ pkcs15_initialize(struct sc_pkcs11_slot *slot, void *ptr,
 		return rv;
 	}
 
-	rv = card_detect_all();
+	rv = card_detect_all(1);
 	if (rv != CKR_OK)   {
 		sc_log(context, "detect all card error 0x%lX", rv);
 		return rv;

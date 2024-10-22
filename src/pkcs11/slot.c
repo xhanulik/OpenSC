@@ -27,6 +27,8 @@
 
 #include "sc-pkcs11.h"
 
+static char hot_plug_slot_name[64] = "Virtual hotplug slot";
+
 /* Print virtual_slots list. Called by DEBUG_VSS(S, C) */
 void _debug_virtual_slots(sc_pkcs11_slot_t *p)
 {
@@ -96,7 +98,7 @@ void init_slot_info(CK_SLOT_INFO_PTR pInfo, sc_reader_t *reader)
 		pInfo->hardwareVersion.major = reader->version_major;
 		pInfo->hardwareVersion.minor = reader->version_minor;
 	} else {
-		strcpy_bp(pInfo->slotDescription, "Virtual hotplug slot", 64);
+		strcpy_bp(pInfo->slotDescription, hot_plug_slot_name, 64);
 		strcpy_bp(pInfo->manufacturerID, OPENSC_VS_FF_COMPANY_NAME, 32);
 		pInfo->hardwareVersion.major = OPENSC_VERSION_MAJOR;
 		pInfo->hardwareVersion.minor = OPENSC_VERSION_MINOR;
@@ -116,6 +118,13 @@ static int object_list_seeker(const void *el, const void *key)
 	if (object->handle == *(CK_OBJECT_HANDLE*)key)
 		return 1;
 	return 0;
+}
+
+static void init_slot_reader(struct sc_pkcs11_slot *slot, sc_reader_t *reader) {
+	slot->login_user = -1;
+	slot->id = (CK_SLOT_ID) list_locate(&virtual_slots, slot);
+	init_slot_info(&slot->slot_info, reader);
+	slot->reader = reader;
 }
 
 CK_RV create_slot(sc_reader_t *reader)
@@ -155,10 +164,7 @@ CK_RV create_slot(sc_reader_t *reader)
 		slot->objects = objects;
 	}
 
-	slot->login_user = -1;
-	slot->id = (CK_SLOT_ID) list_locate(&virtual_slots, slot);
-	init_slot_info(&slot->slot_info, reader);
-	slot->reader = reader;
+	init_slot_reader(slot, reader);
 
 	DEBUG_VSS(slot, "Finished initializing this slot");
 
@@ -386,11 +392,13 @@ fail:
 
 
 CK_RV
-card_detect_all(void)
+card_detect_all(int create_slots)
 {
 	unsigned int i, j;
 
 	sc_log(context, "Detect all cards");
+	/* Detect all currently connected readers */
+	sc_ctx_detect_readers(context);
 	/* Detect cards in all initialized readers */
 	for (i=0; i< sc_ctx_get_reader_count(context); i++) {
 		sc_reader_t *reader = sc_ctx_get_reader(context, i);
@@ -419,11 +427,35 @@ card_detect_all(void)
 					break;
 				}
 			}
-			if (!found) {
+			// Create new slots
+			if (!found && create_slots) {
 				for (j = 0; j < sc_pkcs11_conf.slots_per_card; j++) {
 					CK_RV rv = create_slot(reader);
 					if (rv != CKR_OK)
 						return rv;
+				}
+			}
+			// Only assign existing preallocated slots
+			if (!found && !create_slots) {
+				// Check if enough preallocated slots exist by testing the slot name
+				unsigned num_slots = 0;
+				for (j = 0; j < list_size(&virtual_slots); j++) {
+					sc_pkcs11_slot_t *slot = (sc_pkcs11_slot_t *) list_get_at(&virtual_slots, j);
+					if (memcmp(slot->slot_info.slotDescription, hot_plug_slot_name, 64)) {
+						num_slots++;
+					}
+				}
+				if (num_slots < sc_pkcs11_conf.slots_per_card) {
+					sc_log(context, "Not enough free hot-plug slots to add new reader");
+					return CKR_OK;
+				}
+				// set all of them to newly attached reader
+				for (j = 0; j < list_size(&virtual_slots) && num_slots > 0; j++) {
+					sc_pkcs11_slot_t *slot = (sc_pkcs11_slot_t *) list_get_at(&virtual_slots, j);
+					if (memcmp(slot->slot_info.slotDescription, hot_plug_slot_name, 64)) {
+						// assign slot to reader
+						init_slot_reader(slot, reader);
+					}
 				}
 			}
 			card_detect(reader);
@@ -542,7 +574,7 @@ CK_RV slot_find_changed(CK_SLOT_ID_PTR idp, int mask)
 	unsigned int i;
 	LOG_FUNC_CALLED(context);
 
-	card_detect_all();
+	card_detect_all(0);
 	for (i=0; i<list_size(&virtual_slots); i++) {
 		sc_pkcs11_slot_t *slot = (sc_pkcs11_slot_t *) list_get_at(&virtual_slots, i);
 		sc_log(context, "slot 0x%lx token: %lu events: 0x%02X",
