@@ -370,12 +370,13 @@ CK_RV C_Initialize(CK_VOID_PTR pInitArgs)
 	list_attributes_seeker(&virtual_slots, slot_list_seeker);
 
 	// Add enough hot-plug slots for one reader
-	// TODO: regulate this with some config options (whether we allow it or not)
-	for (unsigned int j = 0; j < sc_pkcs11_conf.slots_per_card; j++) {
-		CK_RV rv = create_slot(NULL);
-		if (rv != CKR_OK) {
-			rv = CKR_GENERAL_ERROR;
-			goto out;
+	if (sc_pkcs11_conf.create_hot_plug_slots) {
+		for (unsigned int j = 0; j < sc_pkcs11_conf.slots_per_card; j++) {
+			CK_RV rv = create_slot(NULL);
+			if (rv != CKR_OK) {
+				rv = CKR_GENERAL_ERROR;
+				goto out;
+			}
 		}
 	}
 

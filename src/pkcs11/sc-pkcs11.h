@@ -74,6 +74,7 @@ struct sc_pkcs11_config {
 	unsigned int create_puk_slot;
 	unsigned int create_slots_flags;
 	unsigned char ignore_pin_length;
+	unsigned int create_hot_plug_slots;
 };
 
 /*

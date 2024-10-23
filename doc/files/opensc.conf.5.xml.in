@@ -1778,6 +1778,15 @@ app <replaceable>application</replaceable> {
 							<option>create_slots_for_pins = "user";</option>
 					</para></listitem>
 				</varlistentry>
+				<varlistentry>
+					<term>
+						<option>create_hot_plug_slots = <replaceable>bool</replaceable>;</option>
+					</term>
+					<listitem><para>
+							Create hot-plug slots for readers inserted during operation
+							(Default: <literal>true</literal>).
+					</para></listitem>
+				</varlistentry>
 			</variablelist>
 		</refsect2>
 

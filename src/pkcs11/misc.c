@@ -497,6 +497,7 @@ void load_pkcs11_parameters(struct sc_pkcs11_config *conf, sc_context_t * ctx)
 	conf->pin_unblock_style = SC_PKCS11_PIN_UNBLOCK_NOT_ALLOWED;
 	conf->create_puk_slot = 0;
 	conf->create_slots_flags = SC_PKCS11_SLOT_CREATE_ALL;
+	conf->create_hot_plug_slots = 1;
 
 	conf_block = sc_get_conf_block(ctx, "pkcs11", NULL, 1);
 	if (!conf_block)
@@ -535,6 +536,8 @@ void load_pkcs11_parameters(struct sc_pkcs11_config *conf, sc_context_t * ctx)
 		op = strtok(NULL, " ,");
 	}
 	free(tmp);
+
+	conf->create_hot_plug_slots = scconf_get_bool(conf_block, "create_hot_plug_slots", conf->create_hot_plug_slots);
 
 out:
 	sc_log(ctx, "PKCS#11 options: max_virtual_slots=%d slots_per_card=%d "
