@@ -27,6 +27,8 @@
 
 #include "sc-pkcs11.h"
 
+static int retry = 3;
+
 /* Print virtual_slots list. Called by DEBUG_VSS(S, C) */
 void _debug_virtual_slots(sc_pkcs11_slot_t *p)
 {
@@ -215,7 +217,6 @@ CK_RV card_detect(sc_reader_t *reader)
 	CK_RV rv;
 	unsigned int i;
 	int j;
-	int retry = 3;
 
 	sc_log(context, "%s: Detecting smart card", reader->name);
 	/* Check if someone inserted a card */
