@@ -594,8 +594,8 @@ struct piv_object {
 	unsigned int resp_tag;
 	const char * oidstring;
 	size_t tag_len;
-	u8  tag_value[3];
-	u8  containerid[2];	/* will use as relative paths for simulation */
+	u8  tag_value[4];
+	u8  containerid[3];	/* will use as relative paths for simulation */
 	int flags;              /* object has some internal object like a cert */
 };
 

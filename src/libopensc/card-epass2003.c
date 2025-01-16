@@ -3050,7 +3050,7 @@ epass2003_erase_card(struct sc_card *card)
 		0x31,0x32,0x33,0x34, 0x35,0x36,0x37,0x38,
 		0x31,0x32,0x33,0x34, 0x35,0x36,0x37,0x38,
 	};
-	static const unsigned char magic_pin[16] = "1234567812345678";
+	static const unsigned char magic_pin[17] = "1234567812345678";
 	static const unsigned char mf_path[2] = { 0x3f, 0x00 };
 	sc_apdu_t apdu;
 	int r;
