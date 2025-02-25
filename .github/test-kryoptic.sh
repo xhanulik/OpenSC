@@ -1,82 +1,13 @@
 #!/bin/bash -e
 
-
 ERRORS=0
 function assert()
 {
-    echo "Error value: $1"
 	if [[ $1 != 0 ]]; then
 		echo "====> ERROR: $2"
 		ERRORS=ERRORS + 1
 	fi
 }
-
-
-echo "======================================================="
-echo "Setup Kryoptic"
-echo "======================================================="
-
-# build kryoptic
-if [ ! -d "kryoptic" ]; then
-	git clone https://github.com/latchset/kryoptic.git
-fi
-pushd kryoptic
-cargo build --features dynamic,standard,nssdb
-popd
-
-# search for kryoptic
-KRYOPTIC_PWD="$PWD/kryoptic/target/debug/libkryoptic_pkcs11.so"
-TMPPDIR="$PWD/kryoptic"
-TOKDIR="$TMPPDIR/tokens"
-
-# remove the possibly existing directories
-if [ -d "${TMPPDIR}" ]; then
-    rm -fr "${TMPPDIR}"
-fi
-mkdir -p "${TMPPDIR}"
-mkdir "${TOKDIR}"
-
-if test -f "$KRYOPTIC_PWD" ; then
-	echo "Using kryoptic path $KRYOPTIC_PWD"
-	P11LIB="$KRYOPTIC_PWD"
-else
-	echo "Kryoptic not found"
-	exit 0
-fi
-echo Kryoptic setup done
-exit
-
-# create database for kryoptic
-export KRYOPTIC_CONF="${KRYOPTIC_CONF:-$TOKDIR/kryoptic.sql}"
-export TOKENLABEL="Kryoptic Token"
-export TOKENLABELURI="Kryoptic%20Token"
-PINVALUE="123456"
-PINFILE="${TMPPDIR}/pinfile.txt"
-echo ${PINVALUE} > "${PINFILE}"
-PKCS11_DEBUG_FILE="${TMPPDIR}/pkcs11-test.log"
-
-PKCS11_TOOL="/home/vhanulik/devel/OpenSC/src/tools/.libs/pkcs11-tool" # TODO: adjust for BUILD_PATH
-
-echo "======================================================="
-echo "Initialize Kryoptic Token"
-echo "======================================================="
-
-# init token
-pkcs11-tool --module "${P11LIB}" --init-token \
-    --label "${TOKENLABEL}" --so-pin "${PINVALUE}"
-# set pin
-pkcs11-tool --module "${P11LIB}" --so-pin "${PINVALUE}" \
-    --login --login-type so --init-pin --pin "${PINVALUE}"
-
-export TOKENCONFIGVARS="export KRYOPTIC_CONF=$TOKDIR/kryoptic.sql"
-export PKCS11_PROVIDER_MODULE=$P11LIB
-PUB_ARGS=("--module=${P11LIB}" "--token-label=${TOKENLABEL}")
-PRIV_ARGS=("${PUB_ARGS[@]}" "--login" "--pin=${PINVALUE}")
-echo
-
-echo "======================================================="
-echo "Generate Keys"
-echo "======================================================="
 
 function generate_key() {
 	TYPE="$1"
@@ -108,6 +39,71 @@ function generate_key() {
 	fi
 	rm ${TOKDIR}/$ID.der
 }
+
+
+echo "======================================================="
+echo "Setup Kryoptic"
+echo "======================================================="
+
+# build kryoptic
+if [ ! -d "kryoptic" ]; then
+	git clone https://github.com/latchset/kryoptic.git
+fi
+pushd kryoptic
+cargo build --features dynamic,standard,nssdb
+popd
+
+# search for kryoptic
+KRYOPTIC_PWD="$PWD/kryoptic/target/debug/libkryoptic_pkcs11.so"
+TMPPDIR="$PWD/kryoptic/tmp"
+TOKDIR="$TMPPDIR/tokens"
+
+# remove the possibly existing directories
+if [ -d "${TMPPDIR}" ]; then
+    rm -fr "${TMPPDIR}"
+fi
+mkdir -p "${TMPPDIR}"
+mkdir "${TOKDIR}"
+
+if test -f "$KRYOPTIC_PWD" ; then
+	echo "Using kryoptic path $KRYOPTIC_PWD"
+	P11LIB="$KRYOPTIC_PWD"
+else
+	echo "Kryoptic not found"
+	exit 0
+fi
+
+# create database for kryoptic
+export KRYOPTIC_CONF="${KRYOPTIC_CONF:-$TOKDIR/kryoptic.sql}"
+export TOKENLABEL="Kryoptic Token"
+export TOKENLABELURI="Kryoptic%20Token"
+PINVALUE="123456"
+PINFILE="${TMPPDIR}/pinfile.txt"
+echo ${PINVALUE} > "${PINFILE}"
+PKCS11_DEBUG_FILE="${TMPPDIR}/pkcs11-test.log"
+
+PKCS11_TOOL="pkcs11-tool"
+
+echo "======================================================="
+echo "Initialize Kryoptic Token"
+echo "======================================================="
+
+# init token
+$PKCS11_TOOL --module "${P11LIB}" --init-token \
+    --label "${TOKENLABEL}" --so-pin "${PINVALUE}"
+# set pin
+$PKCS11_TOOL --module "${P11LIB}" --so-pin "${PINVALUE}" \
+    --login --login-type so --init-pin --pin "${PINVALUE}"
+
+export TOKENCONFIGVARS="export KRYOPTIC_CONF=$TOKDIR/kryoptic.sql"
+export PKCS11_PROVIDER_MODULE=$P11LIB
+PUB_ARGS=("--module=${P11LIB}" "--token-label=${TOKENLABEL}")
+PRIV_ARGS=("${PUB_ARGS[@]}" "--login" "--pin=${PINVALUE}")
+echo
+
+echo "======================================================="
+echo "Generate Keys"
+echo "======================================================="
 
 generate_key "RSA:2048" "0001" "RSA2048" || return 1
 generate_key "RSA:4096" "0002" "RSA4096" || return 1
