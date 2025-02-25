@@ -31,7 +31,7 @@ env:
   LIBRESSL_VERSION: 4.0.0
   KRYOPTIC: https://github.com/latchset/kryoptic.git
   KRYOPTIC_DEPS: |
-    meson cargo expect pkgconf-pkg-config gnutls-utils sqlite-devel python3-six which"
+    openssl-devel cargo expect pkgconf-pkg-config gnutls-utils sqlite-devel python3-six which"
 
 jobs:
   build:
