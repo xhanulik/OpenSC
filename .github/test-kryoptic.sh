@@ -1,9 +1,5 @@
 #!/bin/bash -e
 
-echo running test
-exit
-
-PKCS11_TOOL="/home/vhanulik/devel/OpenSC/src/tools/.libs/pkcs11-tool" # TODO: adjust for BUILD_PATH
 
 ERRORS=0
 function assert()
@@ -15,15 +11,23 @@ function assert()
 	fi
 }
 
+
 echo "======================================================="
 echo "Setup Kryoptic"
 echo "======================================================="
 
-# search for kryoptic
-KRYOPTIC_PWD="/home/vhanulik/devel/kryoptic/target/debug/libkryoptic_pkcs11.so"
-TMPPDIR="/home/vhanulik/devel/OpenSC/tmp/kryoptic"
-TOKDIR="$TMPPDIR/tokens"
+# build kryoptic
+if [ ! -d "kryoptic" ]; then
+	git clone https://github.com/latchset/kryoptic.git
+fi
+pushd kryoptic
+cargo build --features dynamic,standard,nssdb
+popd
 
+# search for kryoptic
+KRYOPTIC_PWD="$PWD/kryoptic/target/debug/libkryoptic_pkcs11.so"
+TMPPDIR="$PWD/kryoptic"
+TOKDIR="$TMPPDIR/tokens"
 
 # remove the possibly existing directories
 if [ -d "${TMPPDIR}" ]; then
@@ -39,7 +43,8 @@ else
 	echo "Kryoptic not found"
 	exit 0
 fi
-echo
+echo Kryoptic setup done
+exit
 
 # create database for kryoptic
 export KRYOPTIC_CONF="${KRYOPTIC_CONF:-$TOKDIR/kryoptic.sql}"
@@ -49,6 +54,8 @@ PINVALUE="123456"
 PINFILE="${TMPPDIR}/pinfile.txt"
 echo ${PINVALUE} > "${PINFILE}"
 PKCS11_DEBUG_FILE="${TMPPDIR}/pkcs11-test.log"
+
+PKCS11_TOOL="/home/vhanulik/devel/OpenSC/src/tools/.libs/pkcs11-tool" # TODO: adjust for BUILD_PATH
 
 echo "======================================================="
 echo "Initialize Kryoptic Token"
