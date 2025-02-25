@@ -34,58 +34,57 @@ env:
     openssl-devel cargo expect pkgconf-pkg-config gnutls-utils sqlite-devel python3-six which"
 
 jobs:
-  build:
-    runs-on: ubuntu-20.04
+  build-ubuntu-22:
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: awalsh128/cache-apt-pkgs-action@v1.4.3
         with:
           packages: ${{ env.BASE_DEPS }}
-          version: apt-20-base
+          version: apt-22-base
           execute_install_scripts: true
       - run: .github/setup-linux.sh
-      - run: .github/build.sh dist
-      - name: Upload test logs
-        uses: actions/upload-artifact@v4
+      - run: .github/build.sh dist valgrind
+      - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: ubuntu-test-logs
+          name: ubuntu-22-test-logs
           path: |
             tests/*.log
             src/tests/unittests/*.log
       - uses: actions/cache@v4
         id: cache-build
+        if: ${{ success() }}
         with:
           path: ./*
-          key: ${{ runner.os }}-${{ github.sha }}
-      - name: Upload build artifacts
+          key: ${{ runner.os }}-22-${{ github.sha }}
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
+        if: ${{ success() }}
         with:
-          name: opensc-build
+          name: opensc-22-build
           path:
             opensc*.tar.gz
-
-
   
   #######################
   ## pkcs11-tool tests ##
   #######################
 
   test-kryoptic:
-    runs-on: ubuntu-20.04
-    needs: [build]
+    runs-on: ubuntu-22.04
+    needs: [build-ubuntu-22]
     steps:
       - uses: actions/checkout@v4
       - uses: awalsh128/cache-apt-pkgs-action@v1.4.3
         with:
-          packages: ${{ env.BASE_DEPS }} ${{ env.KRYOPTIC }}
-          version: apt-20-base
+          packages: ${{ env.BASE_DEPS }} ${{ env.KRYOPTIC_DEPS }}
+          version: apt-22-base
           execute_install_scripts: true
       - uses: actions/cache@v4
         id: cache-build
         with:
           path: ./*
-          key: ${{ runner.os }}-${{ github.sha }}
+          key: ${{ runner.os }}-22-${{ github.sha }}
       - run: git clone $KRYOPTIC
       - run: .github/setup-linux.sh kryoptic
       - run: .github/test-kryoptic.sh
