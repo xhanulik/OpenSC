@@ -53,6 +53,8 @@ elif [ "$1" == "mingw" -o "$1" == "mingw32" ]; then
 		WINE_DEPS="$WINE_DEPS binutils-mingw-w64-i686 gcc-mingw-w64-i686"
 	fi
 	FORCE_INSTALL=1
+elif [ "$1" == "kryoptic" ]; then
+	DEPS="$DEPS meson cargo expect pkgconf-pkg-config gnutls-utils sqlite-devel python3-six which"
 fi
 
 # The Github Ubuntu images since 20211122.1 are broken
