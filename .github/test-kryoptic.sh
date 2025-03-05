@@ -9,19 +9,13 @@ if [ ! -d "kryoptic" ]; then
 	git clone https://github.com/latchset/kryoptic.git
 fi
 pushd kryoptic
+git submodule init
+git submodule update
 cargo build --features dynamic,standard,nssdb
 popd
 
 # set paths
 KRYOPTIC_PWD="$PWD/kryoptic/target/debug/libkryoptic_pkcs11.so"
-TMPPDIR="$PWD/kryoptic/tmp"
-export TOKDIR="$TMPPDIR/tokens"
-if [ -d "${TMPPDIR}" ]; then
-    rm -fr "${TMPPDIR}"
-fi
-mkdir -p "${TMPPDIR}"
-mkdir "${TOKDIR}"
-
 if test -f "$KRYOPTIC_PWD" ; then
 	echo "Using kryoptic path $KRYOPTIC_PWD"
 	P11LIB="$KRYOPTIC_PWD"
@@ -29,6 +23,14 @@ else
 	echo "Kryoptic not found"
 	exit 0
 fi
+
+TMPPDIR="$PWD/kryoptic/tmp"
+export TOKDIR="$TMPPDIR/tokens"
+if [ -d "${TMPPDIR}" ]; then
+    rm -fr "${TMPPDIR}"
+fi
+mkdir -p "${TMPPDIR}"
+mkdir "${TOKDIR}"
 
 
 heading "Initialize Kryoptic Token"

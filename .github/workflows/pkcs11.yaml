@@ -1,0 +1,56 @@
+name: Kryoptic
+
+on:
+  pull_request:
+    paths:
+      - '**.c'
+      - '**.h'
+      - '**.sh'
+      - .github/workflows/fedora.yml
+      - '**.am'
+      - doc/**
+      - configure.ac
+  push:
+
+permissions:
+  contents: read  #  to fetch code (actions/checkout)
+
+env:
+  KRYOPTIC: https://github.com/latchset/kryoptic.git
+
+jobs:
+  #######################
+  ## pkcs11-tool tests ##
+  #######################
+
+  test-kryoptic:
+    runs-on: ubuntu-24.04
+    container:
+      image: fedora:latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      - name: Install git
+        run: |
+            dnf -y install git
+      - name: Get Kryoptic
+        run: git clone $KRYOPTIC
+      - name: Setup Fedora
+        run: .github/setup-fedora.sh kryoptic
+      - name: Install OpenSC
+        run: .github/build.sh dist
+      - name: Test Kryoptic
+        run: .github/test-kryoptic.sh
+  
+  test-softokn:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Ubuntu
+        run: .github/setup-linux.sh softokn
+      - name: Build OpenSC
+        run: .github/build.sh dist
+      - name: Test softokn
+        run: .github/test-softokn.sh
+      

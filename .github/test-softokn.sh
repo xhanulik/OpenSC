@@ -4,8 +4,24 @@ source "./pkcs11-common.sh"
 
 heading "Setup softtokn"
 
-# set paths
-SOFTOKN_PWD="/usr/lib64/libsoftokn3.so"
+# find softokn PKCS#11 module path
+softokn_paths=(
+    "/usr/lib64/libsoftokn3.so" # Fedora
+    "/usr/lib/x86_64-linux-gnu/libsoftokn3.so" # Ubuntu
+)
+P11LIB=""
+for lib in "${softokn_paths[@]}"; do
+    if [ -f "$lib" ]; then
+        echo "Using softokn path $lib"
+        P11LIB="$lib"
+        break
+    fi
+done
+if [ -z "$P11LIB" ]; then
+    echo "Unable to find softokn PKCS#11 library"
+    exit 1
+fi
+
 TMPPDIR="$PWD/softokn"
 export TOKDIR="$TMPPDIR/tokens"
 if [ -d "${TMPPDIR}" ]; then
@@ -14,13 +30,6 @@ fi
 mkdir "${TMPPDIR}"
 mkdir "${TOKDIR}"
 
-if test -f "$SOFTOKN_PWD" ; then
-	echo "Using softokn path $KRYOPTIC_PWD"
-	P11LIB="$SOFTOKN_PWD"
-else
-	echo "softtokn not found"
-	exit 0
-fi
 
 heading "Initialize softokn"
 TOKENLABEL="NSS Certificate DB"
