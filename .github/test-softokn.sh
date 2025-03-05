@@ -44,7 +44,7 @@ export NSS_LIB_PARAMS=configDir=$TMPPDIR/tokens
 export PKCS11_TOOL="pkcs11-tool"
 export PUB_ARGS=("--module=${P11LIB}" "--token-label=${TOKENLABEL}")
 export PRIV_ARGS=("${PUB_ARGS[@]}" "--login" "--pin=${PINVALUE}")
-source "./pkcs11-common.sh"
+source "./.github/pkcs11-common.sh"
 
 
 heading "Generate Keys"

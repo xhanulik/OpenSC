@@ -50,7 +50,7 @@ $PKCS11_TOOL --module "${P11LIB}" --so-pin "${PINVALUE}" \
 # setup file with auxiliary functions
 export PUB_ARGS=("--module=${P11LIB}" "--token-label=${TOKENLABEL}")
 export PRIV_ARGS=("${PUB_ARGS[@]}" "--login" "--pin=${PINVALUE}")
-source "./pkcs11-common.sh"
+source "./.github/pkcs11-common.sh"
 echo
 
 
