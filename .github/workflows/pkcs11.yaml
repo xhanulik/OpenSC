@@ -1,4 +1,4 @@
-name: Kryoptic
+name: pkcs11-tool tests
 
 on:
   pull_request:
@@ -16,6 +16,13 @@ permissions:
   contents: read  #  to fetch code (actions/checkout)
 
 env:
+  BASE_DEPS: |
+    build-essential docbook-xsl xsltproc gengetopt help2man pcscd check
+    pcsc-tools libtool make autoconf autoconf-archive automake pkg-config
+    git xxd openssl valgrind socat gawk
+    libglib2.0-dev libnss3-dev gnutls-bin libusb-dev libudev-dev flex
+    libnss3-tools
+    libpcsclite-dev libcmocka-dev libssl-dev zlib1g-dev libreadline-dev softhsm2
   KRYOPTIC: https://github.com/latchset/kryoptic.git
 
 jobs:
@@ -45,8 +52,12 @@ jobs:
   test-softokn:
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: awalsh128/cache-apt-pkgs-action@v1.4.3
+        with:
+          packages: ${{ env.BASE_DEPS }}
+          version: apt-20-base
+          execute_install_scripts: true
       - name: Setup Ubuntu
         run: .github/setup-linux.sh softokn
       - name: Build OpenSC
