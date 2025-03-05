@@ -1,8 +1,8 @@
 #!/bin/bash -e
 
-echo "======================================================="
-echo "Setup Kryoptic"
-echo "======================================================="
+source "./pkcs11-common.sh"
+
+heading "Setup Kryoptic"
 
 # build kryoptic
 if [ ! -d "kryoptic" ]; then
@@ -12,10 +12,10 @@ pushd kryoptic
 cargo build --features dynamic,standard,nssdb
 popd
 
-# set Kryoptic paths
+# set paths
 KRYOPTIC_PWD="$PWD/kryoptic/target/debug/libkryoptic_pkcs11.so"
 TMPPDIR="$PWD/kryoptic/tmp"
-TOKDIR="$TMPPDIR/tokens"
+export TOKDIR="$TMPPDIR/tokens"
 if [ -d "${TMPPDIR}" ]; then
     rm -fr "${TMPPDIR}"
 fi
@@ -30,16 +30,13 @@ else
 	exit 0
 fi
 
-# Create database for kryoptic
+
+heading "Initialize Kryoptic Token"
 export KRYOPTIC_CONF="${KRYOPTIC_CONF:-$TOKDIR/kryoptic.sql}"
 export TOKENCONFIGVARS="export KRYOPTIC_CONF=$TOKDIR/kryoptic.sql"
 export TOKENLABEL="Kryoptic Token"
 export PKCS11_TOOL="pkcs11-tool"
 export PINVALUE="123456"
-
-echo "======================================================="
-echo "Initialize Kryoptic Token"
-echo "======================================================="
 
 # init token
 $PKCS11_TOOL --module "${P11LIB}" --init-token \
@@ -54,209 +51,48 @@ export PRIV_ARGS=("${PUB_ARGS[@]}" "--login" "--pin=${PINVALUE}")
 source "./pkcs11-common.sh"
 echo
 
-echo "======================================================="
-echo "Generate Keys"
-echo "======================================================="
 
+heading "Generate Keys"
 generate_key "RSA:2048" "0001" "RSA2048" || return 1
 generate_key "RSA:4096" "0002" "RSA4096" || return 1
 generate_key "EC:secp256r1" "0003" "ECC_auth" || return 1
 generate_key "EC:secp521r1" "0004" "ECC521" || return 1
 
-echo "======================================================="
+
 echo "Listing Objects"
-echo "======================================================="
 pkcs11-tool "${PUB_ARGS[@]}" -O
 echo
 
-echo "======================================================="
-echo "Test"
-echo "======================================================="
-echo "pkcs11-tool test not working for now"
-#$PKCS11_TOOL "${PRIV_ARGS[@]}" --test | grep " errors"
-#assert $? "Failed running tests"
 
-echo "======================================================="
+heading "The pkcs11-tool Test"
+$PKCS11_TOOL "${PRIV_ARGS[@]}" --test | grep " errors"
+assert $? "Failed running tests"
+
 echo "Sign/Verify Test"
-echo "======================================================="
 
 # RSA tests
 for HASH in "" "SHA224" "SHA256" "SHA384" "SHA512"; do
-    RETOSSL="0"
-
     for SIGN_KEY in "0001" "0002"; do
-        METHOD="RSA-PKCS"
-        # RSA-PKCS works only on small data - generate small data:
-        head -c 64 </dev/urandom > data # TODO change placing
-        if [[ ! -z $HASH ]]; then
-            METHOD="$HASH-$METHOD"
-            # hash- methods should work on data > 512 bytes
-            head -c 1024 </dev/urandom > data
-        fi
-        echo
-        echo "-------------------------------------------------------"
-        echo " ▸ $METHOD: Sign & Verify (KEY $SIGN_KEY)"
-        echo "-------------------------------------------------------"
-        $PKCS11_TOOL "${PRIV_ARGS[@]}" --id $SIGN_KEY -s -m $METHOD --input-file data --output-file data.sig
-        assert $? "Failed to Sign data"
-
-        # OpenSSL verification
-        echo -n "Verification by OpenSSL: "
-        if [[ -z $HASH ]]; then
-            openssl pkeyutl -verify -inkey ${TOKDIR}/$SIGN_KEY.pub -in data -sigfile data.sig -pubin
-        else
-            openssl dgst -keyform PEM -verify ${TOKDIR}/$SIGN_KEY.pub -${HASH,,*} \
-                   -signature data.sig data
-        fi
-        if [[ "$RETOSSL" == "0" ]]; then
-            assert $? "Failed to Verify signature using OpenSSL"
-        elif [[ "$?" == "0" ]]; then
-            assert 1 "Unexpectedly Verified signature using OpenSSL"
-        fi
-
-        # pkcs11-tool verification
-        echo "Verification by pkcs11-tool:"
-        $PKCS11_TOOL "${PUB_ARGS[@]}" --id $SIGN_KEY --verify -m $METHOD \
-               --input-file data --signature-file data.sig
-        assert $? "Failed to Verify signature using pkcs11-tool"
-        rm data.sig
-
-        METHOD="$METHOD-PSS"
-        # -PSS methods should work on data > 512 bytes; generate data:
-        head -c 1024 </dev/urandom > data
-        if [[ "$HASH" == "SHA512" ]]; then
-            continue; # This one is broken
-        fi
-
-        echo
-        echo "-------------------------------------------------------"
-        echo " ▸ $METHOD: Sign & Verify (KEY $SIGN_KEY)"
-        echo "-------------------------------------------------------"
-        if [[ -z $HASH ]]; then
-            # hashing is done outside of the module. We choose here SHA256
-            openssl dgst -binary -sha256 data > data.hash
-            HASH_ALGORITM="--hash-algorithm=SHA256"
-            VERIFY_DGEST="-sha256"
-            VERIFY_OPTS="-sigopt rsa_mgf1_md:sha256"
-        else
-            # hashing is done inside of the module
-            cp data data.hash
-            HASH_ALGORITM=""
-            VERIFY_DGEST="-${HASH,,*}"
-            VERIFY_OPTS="-sigopt rsa_mgf1_md:${HASH,,*}"
-        fi
-        $PKCS11_TOOL "${PRIV_ARGS[@]}" --id $SIGN_KEY -s -m $METHOD $HASH_ALGORITM --salt-len=-1 \
-               --input-file data.hash --output-file data.sig
-        assert $? "Failed to Sign data"
-
-        # OpenSSL verification
-        echo -n "Verification by OpenSSL: "
-        openssl dgst -keyform PEM -verify ${TOKDIR}/$SIGN_KEY.pub $VERIFY_DGEST \
-               -sigopt rsa_padding_mode:pss  $VERIFY_OPTS -sigopt rsa_pss_saltlen:-1 \
-               -signature data.sig data
-        if [[ "$RETOSSL" == "0" ]]; then
-            assert $? "Failed to Verify signature using openssl"
-        elif [[ "$?" == "0" ]]; then
-            assert 1 "Unexpectedly Verified signature using OpenSSL"
-        fi
-
-        # pkcs11-tool verification
-        echo "Verification by pkcs11-tool:"
-        $PKCS11_TOOL "${PUB_ARGS[@]}" --id $SIGN_KEY --verify -m $METHOD \
-               $HASH_ALGORITM --salt-len=-1 \
-               --input-file data.hash --signature-file data.sig
-        assert $? "Failed to Verify signature using pkcs11-tool"
-        rm data.{sig,hash}
+        test_rsa_pkcs_sign_verify "$HASH" "$SIGN_KEY"
+        test_rsa_pkcs_pss_sign_verify "$HASH" "$SIGN_KEY"
     done
 done
 
 # ECDSA tests
-head -c 1024 </dev/urandom > data
 for SIGN_KEY in "0003" "0004"; do
-    METHOD="ECDSA"
-
-    echo
-    echo "-------------------------------------------------------"
-    echo " ▸ $METHOD: Sign & Verify (KEY $SIGN_KEY)"
-    echo "-------------------------------------------------------"
-    openssl dgst -binary -sha256 data > data.hash
-    $PKCS11_TOOL "${PRIV_ARGS[@]}" --id $SIGN_KEY -s -m $METHOD \
-        --input-file data.hash --output-file data.sig
-    assert $? "Failed to Sign data"
-    $PKCS11_TOOL "${PRIV_ARGS[@]}" --id $SIGN_KEY -s -m $METHOD \
-        --input-file data.hash --output-file data.sig.openssl \
-        --signature-format openssl
-    assert $? "Failed to Sign data into OpenSSL format"
-
-    # OpenSSL verification
-    echo -n "Verification by OpenSSL: "
-    openssl dgst -keyform PEM -verify ${TOKDIR}/$SIGN_KEY.pub -sha256 \
-               -signature data.sig.openssl data
-    assert $? "Failed to Verify signature using OpenSSL"
-
-    # pkcs11-tool verification
-    echo "Verification by pkcs11-tool:"
-    $PKCS11_TOOL "${PUB_ARGS[@]}" --id $SIGN_KEY --verify -m $METHOD \
-           --input-file data.hash --signature-file data.sig
-    assert $? "Failed to Verify signature using pkcs11-tool"
-    rm data.sig{,.openssl} data.hash
+    test_ecdsa_sign_verify "$SIGN_KEY"
 done
 echo
 
-echo "======================================================="
-echo "Encrypt/Decrypt Test"
-echo "======================================================="
-
-METHOD="RSA-PKCS"
-head -c 64 </dev/urandom > data
+heading "Encrypt/Decrypt Test"
 for ENC_KEY in "0001" "0002"; do
-    echo
-    echo "-------------------------------------------------------"
-    echo " ▸ $METHOD: Decrypt (KEY $ENC_KEY)"
-    echo "-------------------------------------------------------"
-    # OpenSSL Encryption
-    openssl pkeyutl -encrypt -inkey ${TOKDIR}/$ENC_KEY.pub -in data -pubin -out data.crypt
-    assert $? "Failed to encrypt data using OpenSSL"
-    # pkcs11-tool Decryption
-    $PKCS11_TOOL "${PRIV_ARGS[@]}" --id $ENC_KEY --decrypt -m $METHOD \
-            --input-file data.crypt > data.decrypted
-    assert $? "Failed to Decrypt data"
-    diff data{,.decrypted}
-    assert $? "The decrypted data do not match the original"
-    rm data.{crypt,decrypted}
-    echo "Decryption is valid"
+    test_rsa_pkcs_decrypt "$ENC_KEY"
 done
+# RSA-PKCS-OAEP decryption by pkcs11-tool returns
+# error: PKCS11 function C_DecryptUpdate failed: rv = CKR_OPERATION_NOT_INITIALIZED (0x91)
 
-head -c 64 </dev/urandom > data
-METHOD="RSA-PKCS-OAEP"
-for ENC_KEY in "0001" "0002"; do
-    echo
-    echo "-------------------------------------------------------"
-    echo " ▸ $METHOD: Decrypt (KEY $ENC_KEY)"
-    echo "-------------------------------------------------------"
-    # OpenSSL Encryption
-    openssl pkeyutl -encrypt -inkey ${TOKDIR}/$ENC_KEY.pub -pubin -pkeyopt pad-mode:oaep -pkeyopt digest:sha512 -pkeyopt mgf1-digest:sha512 \
-                -in data  -out data.crypt
-    assert $? "Failed to encrypt data using OpenSSL"
-    
-    echo "Decryption by pkcs11-tool:"
-    echo "Not working yet"
-    # TODO: Failing with CKR_DEVICE_ERROR
-    #$PKCS11_TOOL "${PRIV_ARGS[@]}" --id $ENC_KEY --decrypt \
-    #        -m "RSA-PKCS-OAEP" --hash-algorithm "SHA256" --mgf "MGF1-SHA256" \
-    #        --input-file data.crypt > data.decrypted
-    #assert $? "Failed to Decrypt data"
-    #diff data{,.decrypted}
-    #assert $? "The decrypted data do not match the original"
-    #rm data.{crypt,decrypted}
-    #echo "Decryption is valid"
-done
-rm data
-echo
 
-echo "======================================================="
-echo "Test key-pair with CKA_ALLOWED_MECHANISMS"
-echo "======================================================="
+heading "Test key-pair with CKA_ALLOWED_MECHANISMS"
 ID="0006"
 MECHANISMS="RSA-PKCS,SHA1-RSA-PKCS,RSA-PKCS-PSS"
 # Generate key pair
@@ -273,7 +109,6 @@ grep -q "$MECHANISMS" objects.list
 assert $? "The $MECHANISMS is not in the list"
 rm -f objects.list
 
-
 # Make sure we are not allowed to use forbidden mechanism
 echo "data to sign (max 100 bytes)" > data
 $PKCS11_TOOL "${PRIV_ARGS[@]}" --id $ID -s -m SHA256-RSA-PKCS \
@@ -284,42 +119,11 @@ echo
 echo "CKA_ALLOWED_MECHANISMS working correctly"
 echo
 
-echo "======================================================="
-echo "Test import of keys"
-echo "======================================================="
 
+heading "Test import of keys"
 for KEYTYPE in "RSA" "EC" ; do
-    echo "-------------------------------------------------------"
-    echo " ▸ Generate and import $KEYTYPE keys"
-    echo "-------------------------------------------------------"
-    ID="0100"
-    OPTS="-pkeyopt rsa_keygen_bits:2048"
-    if [ "$KEYTYPE" == "EC" ]; then
-        ID="0200"
-        OPTS="-pkeyopt ec_paramgen_curve:P-256" 
-    fi
-    openssl genpkey -out "${KEYTYPE}_private.der" -outform DER -algorithm $KEYTYPE $OPTS
-
-    assert $? "Failed to generate private $KEYTYPE key"
-    $PKCS11_TOOL "${PRIV_ARGS[@]}" --write-object "${KEYTYPE}_private.der" --id "$ID" \
-        --type privkey --label "$KEYTYPE"
-    assert $? "Failed to write private $KEYTYPE key"
-    echo "Private key written"
-
-    openssl pkey -in "${KEYTYPE}_private.der" -out "${KEYTYPE}_public.der" -pubout -inform DER -outform DER
-    assert $? "Failed to convert private $KEYTYPE key to public"
-    $PKCS11_TOOL "${PRIV_ARGS[@]}" --write-object "${KEYTYPE}_public.der" --id "$ID" --type pubkey --label "$KEYTYPE"
-    assert $? "Failed to write public $KEYTYPE key"
-    echo "Public key written"
-
-    rm "${KEYTYPE}_private.der" "${KEYTYPE}_public.der"
+    test_import_key "$KEYTYPE"
 done
 
-
-echo "======================================================="
-echo "Clean"
-echo "======================================================="
-rm -fr "${TMPPDIR}"
-sleep 1
-
+clean
 exit $ERRORS
