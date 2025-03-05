@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-source "./pkcs11-common.sh"
+source "./.github/pkcs11-common.sh"
 
 heading "Setup softtokn"
 
