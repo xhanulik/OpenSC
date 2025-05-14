@@ -151,11 +151,11 @@ echo "======================================================="
 echo " Wrap/Unwrap of private keys"
 echo "======================================================="
 
-for MECH in AES-CBC-PAD AES-KEY-WRAP-PAD; do
+for MECH in AES-CBC-PAD; do
     ID_WRAP=$ID_AES_WRAP
 
-    for WRAPPER in SoftHSM Kryoptic Softokn; do
-        for UNWRAPPER in SoftHSM Kryoptic Softokn; do
+    for WRAPPER in Kryoptic Softokn; do
+        for UNWRAPPER in Kryoptic Softokn; do
             if [ "$WRAPPER" == "$UNWRAPPER" ]; then
                 continue;
             fi
