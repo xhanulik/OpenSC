@@ -155,19 +155,19 @@ static struct ec_curve_info {
 	/* Some of the following may not yet be supported by the OpenSC module, but may be by other modules */
 	/* OpenPGP extensions by Yubikey and GNUK are not defined in RFCs, so pass by printable string */
 	/* See PKCS#11 3.0 2.3.7 */
-	{"edwards25519", "1.3.6.1.4.1.11591.15.1", (unsigned char*)"\x13\x0c\x65\x64\x77\x61\x72\x64\x73\x32\x35\x35\x31\x39", 14, 255, CKM_EC_EDWARDS_KEY_PAIR_GEN}, /* send by curve name */
-	{"curve25519",   "1.3.6.1.4.1.3029.1.5.1", (unsigned char*)"\x13\x0a\x63\x75\x72\x76\x65\x32\x35\x35\x31\x39", 12, 255, CKM_EC_MONTGOMERY_KEY_PAIR_GEN}, /* send by curve name */
+	{"edwards25519", "1.3.6.1.4.1.11591.15.1", (unsigned char*)"\x13\x0c\x65\x64\x77\x61\x72\x64\x73\x32\x35\x35\x31\x39", 14, 256, CKM_EC_EDWARDS_KEY_PAIR_GEN}, /* send by curve name */
+	{"curve25519",   "1.3.6.1.4.1.3029.1.5.1", (unsigned char*)"\x13\x0a\x63\x75\x72\x76\x65\x32\x35\x35\x31\x39", 12, 256, CKM_EC_MONTGOMERY_KEY_PAIR_GEN}, /* send by curve name */
 
 	/* RFC8410, EDWARDS and MONTGOMERY curves are used by GnuPG and also by OpenSSL */
 
-	{"X25519",  "1.3.101.110", (unsigned char*)"\x06\x03\x2b\x65\x6e", 5, 255, CKM_EC_MONTGOMERY_KEY_PAIR_GEN}, /* RFC 4810 send by OID */
+	{"X25519",  "1.3.101.110", (unsigned char*)"\x06\x03\x2b\x65\x6e", 5, 256, CKM_EC_MONTGOMERY_KEY_PAIR_GEN}, /* RFC 4810 send by OID */
 	{"X448",    "1.3.101.111", (unsigned char*)"\x06\x03\x2b\x65\x6f", 5, 448, CKM_EC_MONTGOMERY_KEY_PAIR_GEN}, /* RFC 4810 send by OID */
 	{"Ed25519", "1.3.101.112", (unsigned char*)"\x06\x03\x2b\x65\x70", 5, 255, CKM_EC_EDWARDS_KEY_PAIR_GEN}, /* RFC 4810 send by OID */
-	{"Ed448",   "1.3.101.113", (unsigned char*)"\x06\x03\x2b\x65\x71", 5, 448, CKM_EC_EDWARDS_KEY_PAIR_GEN}, /* RFC 4810 send by OID */
+	{"Ed448",   "1.3.101.113", (unsigned char*)"\x06\x03\x2b\x65\x71", 5, 456, CKM_EC_EDWARDS_KEY_PAIR_GEN}, /* RFC 4810 send by OID */
 
 	/* GnuPG openpgp curves as used in gnupg-card are equivalent to RFC8410 OIDs */
-	{"cv25519", "1.3.101.110", (unsigned char*)"\x06\x03\x2b\x65\x6e", 5, 255, CKM_EC_MONTGOMERY_KEY_PAIR_GEN},
-	{"ed25519", "1.3.101.112", (unsigned char*)"\x06\x03\x2b\x65\x70", 5, 255, CKM_EC_EDWARDS_KEY_PAIR_GEN},
+	{"cv25519", "1.3.101.110", (unsigned char*)"\x06\x03\x2b\x65\x6e", 5, 256, CKM_EC_MONTGOMERY_KEY_PAIR_GEN},
+	{"ed25519", "1.3.101.112", (unsigned char*)"\x06\x03\x2b\x65\x70", 5, 256, CKM_EC_EDWARDS_KEY_PAIR_GEN},
 	/* OpenSC card-openpgp.c will map these to what is need on the card */
 
 	{NULL, NULL, NULL, 0, 0, 0},
@@ -427,6 +427,7 @@ static const char *option_help[] = {
 		"Specify the required length (in bits) for the authentication tag for AEAD ciphers",
 		"Specify the file containing the salt for HKDF (optional)",
 		"Specify the file containing the info for HKDF (optional)",
+		"When reading a public key, try to read PUBLIC_KEY_INFO (DER encoding of SPKI)",
 		"Specify the PKCS#11 URI for module, slot, token or object"
 };
 
@@ -2543,7 +2544,8 @@ parse_pss_params(CK_SESSION_HANDLE session, CK_OBJECT_HANDLE key,
 static void sign_data(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 		CK_OBJECT_HANDLE key)
 {
-	unsigned char	in_buffer[1025], sig_buffer[512];
+	unsigned char in_buffer[1025];
+	CK_BYTE_PTR sig_buffer = NULL;
 	CK_MECHANISM	mech;
 	CK_RSA_PKCS_PSS_PARAMS pss_params;
 	CK_MAC_GENERAL_PARAMS mac_gen_param;
@@ -2551,7 +2553,7 @@ static void sign_data(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 			.phFlag = CK_FALSE,
 	};
 	CK_RV		rv;
-	CK_ULONG	sig_len;
+	CK_ULONG sig_len = 0;
 	int		fd;
 	ssize_t sz;
 	unsigned long	hashlen;
@@ -2582,7 +2584,7 @@ static void sign_data(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 		}
 
 		/* Ed448: need the params defined but default to false */
-		if (curve->size == 448) {
+		if (curve->size == 456) {
 			mech.pParameter = &eddsa_params;
 			mech.ulParameterLen = (CK_ULONG)sizeof(eddsa_params);
 		}
@@ -2621,8 +2623,13 @@ static void sign_data(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 		if ((getCLASS(session, key) == CKO_PRIVATE_KEY) && getALWAYS_AUTHENTICATE(session, key))
 			login(session,CKU_CONTEXT_SPECIFIC);
 
-		sig_len = sizeof(sig_buffer);
 		rv = p11->C_Sign(session, in_buffer, sz, sig_buffer, &sig_len);
+		if (rv == CKR_OK) {
+			sig_buffer = malloc(sig_len);
+			if (!sig_buffer)
+				util_fatal("malloc() failure\n");
+			rv = p11->C_Sign(session, in_buffer, sz, sig_buffer, &sig_len);
+		}
 	}
 
 	if (rv != CKR_OK)   {
@@ -2640,7 +2647,15 @@ static void sign_data(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 			sz = read(fd, in_buffer, sizeof(in_buffer));
 		} while (sz > 0);
 
-		sig_len = sizeof(sig_buffer);
+		/* Signature buffer may have been allocated above */
+		free(sig_buffer);
+		sig_buffer = NULL;
+		rv = p11->C_SignFinal(session, sig_buffer, &sig_len);
+		if (rv != CKR_OK)
+			p11_fatal("C_SignFinal", rv);
+		sig_buffer = malloc(sig_len);
+		if (!sig_buffer)
+			util_fatal("malloc() failure\n");
 		rv = p11->C_SignFinal(session, sig_buffer, &sig_len);
 		if (rv != CKR_OK)
 			p11_fatal("C_SignFinal", rv);
@@ -2670,10 +2685,9 @@ static void sign_data(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 				util_fatal("Failed to convert signature to ASN.1 sequence format");
 			}
 
-			memcpy(sig_buffer, seq, seqlen);
+			free(sig_buffer);
+			sig_buffer = seq;
 			sig_len = seqlen;
-
-			free(seq);
 		}
 	}
 	sz = write(fd, sig_buffer, sig_len);
@@ -2682,12 +2696,14 @@ static void sign_data(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 		util_fatal("Failed to write to %s: %m", opt_output);
 	if (fd != 1)
 		close(fd);
+	free(sig_buffer);
 }
 
 static void verify_signature(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 		CK_OBJECT_HANDLE key)
 {
-	unsigned char	in_buffer[1025], sig_buffer[512];
+	unsigned char in_buffer[1025];
+	CK_BYTE_PTR sig_buffer = NULL;
 	CK_MECHANISM	mech;
 	CK_RSA_PKCS_PSS_PARAMS pss_params;
 	CK_MAC_GENERAL_PARAMS mac_gen_param;
@@ -2695,8 +2711,9 @@ static void verify_signature(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 			.phFlag = CK_FALSE,
 	};
 	CK_RV		rv;
-	CK_ULONG	sig_len;
+	CK_ULONG sig_len = 0;
 	int		fd, fd2;
+	struct stat sig_st;
 	ssize_t sz, sz2;
 	unsigned long   hashlen;
 
@@ -2737,7 +2754,7 @@ static void verify_signature(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 		}
 
 		/* Ed448: need the params defined but default to false */
-		if (curve->size == 448) {
+		if (curve->size == 456) {
 			mech.pParameter = &eddsa_params;
 			mech.ulParameterLen = (CK_ULONG)sizeof(eddsa_params);
 		}
@@ -2748,8 +2765,13 @@ static void verify_signature(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 		util_fatal("No file with signature provided. Use --signature-file");
 	else if ((fd2 = open(opt_signature_file, O_RDONLY|O_BINARY)) < 0)
 		util_fatal("Cannot open %s: %m", opt_signature_file);
-
-	sz2 = read(fd2, sig_buffer, sizeof(sig_buffer));
+	else if (fstat(fd2, &sig_st) != 0)
+		util_fatal("Couldn't get size of file \"", opt_signature_file);
+	sig_len = sig_st.st_size;
+	sig_buffer = malloc(sig_len);
+	if (!sig_buffer)
+		util_fatal("malloc() failure\n");
+	sz2 = read(fd2, sig_buffer, sig_len);
 	if (sz2 < 0)
 		util_fatal("Cannot read from %s: %m", opt_signature_file);
 
@@ -2859,6 +2881,7 @@ static void verify_signature(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 		util_fatal("Invalid signature");
 	else
 		util_fatal("Signature verification failed: rv = %s (0x%0x)\n", CKR2Str(rv), (unsigned int)rv);
+	free(sig_buffer);
 }
 
 static void
@@ -4790,6 +4813,10 @@ static CK_RV write_object(CK_SESSION_HANDLE session)
 			FILL_ATTR(privkey_templ[n_privkey_attr], CKA_DERIVE, &_true, sizeof(_true));
 			n_privkey_attr++;
 		}
+		if (opt_key_usage_wrap) {
+			FILL_ATTR(privkey_templ[n_privkey_attr], CKA_UNWRAP, &_true, sizeof(_true));
+			n_privkey_attr++;
+		}
 		if (opt_always_auth != 0) {
 			FILL_ATTR(privkey_templ[n_privkey_attr], CKA_ALWAYS_AUTHENTICATE,
 				&_true, sizeof(_true));
@@ -4899,6 +4926,10 @@ static CK_RV write_object(CK_SESSION_HANDLE session)
 		}
 		if (opt_key_usage_derive != 0) {
 			FILL_ATTR(pubkey_templ[n_pubkey_attr], CKA_DERIVE, &_true, sizeof(_true));
+			n_pubkey_attr++;
+		}
+		if (opt_key_usage_wrap) {
+			FILL_ATTR(pubkey_templ[n_pubkey_attr], CKA_WRAP, &_true, sizeof(_true));
 			n_pubkey_attr++;
 		}
 
@@ -6860,14 +6891,14 @@ static int read_object(CK_SESSION_HANDLE session)
 					}
 				}
 
-				if (type == CKK_EC_EDWARDS && os->length == BYTES4BITS(255))
+				if (type == CKK_EC_EDWARDS && os->length == BYTES4BITS(256))
 					raw_pk = EVP_PKEY_ED25519;
 #if defined(EVP_PKEY_ED448)
 				else if (type == CKK_EC_EDWARDS && os->length == ED448_KEY_SIZE_BYTES)
 					raw_pk = EVP_PKEY_ED448;
 #endif /* EVP_PKEY_ED448 */
 #if defined(EVP_PKEY_X25519)
-				else if (type == CKK_EC_MONTGOMERY && os->length == BYTES4BITS(255))
+				else if (type == CKK_EC_MONTGOMERY && os->length == BYTES4BITS(256))
 					raw_pk = EVP_PKEY_X25519;
 #endif /*EVP_PKEY_X25519 */
 #if defined(EVP_PKEY_X448)
