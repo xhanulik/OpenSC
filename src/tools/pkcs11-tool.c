@@ -584,6 +584,13 @@ struct generalkey_info {
 #endif
 };
 
+struct pqckey_info {
+	struct sc_lv_data public;
+	struct sc_lv_data private;
+	struct sc_lv_data seed;
+	long int type;
+};
+
 static void		show_cryptoki_info(void);
 static void		list_slots(int, int, int);
 static void		show_token(CK_SLOT_ID);
@@ -3554,6 +3561,30 @@ static int gen_keypair(CK_SLOT_ID slot, CK_SESSION_HANDLE session,
 				n_privkey_attr++;
 			}
 		}
+		else if (strncmp(type, "ML-DSA-", strlen("ML-DSA-")) == 0 || strncmp(type, "ml-dsa-", strlen("ml-dsa-")) == 0) {
+			CK_MECHANISM_TYPE mtypes[] = {CKM_ML_DSA_KEY_PAIR_GEN};
+			size_t mtypes_num = sizeof(mtypes)/sizeof(mtypes[0]);
+			int ii;
+			CK_ML_DSA_PARAMETER_SET_TYPE parameter_set = 0;
+
+			key_type = CKK_ML_DSA;
+
+			if (strlen(type) != strlen("ML-DSA-") + 2) {
+				util_fatal("Invalid ML-DSA key type '%s'", type);
+			} else if (strcmp(type, "ML-DSA-44")) {
+				parameter_set = CKP_ML_DSA_44;
+			} else if (strcmp(type, "ML-DSA-44")) {
+				parameter_set = CKP_ML_DSA_44;
+			} else if (strcmp(type, "ML-DSA-44")) {
+				parameter_set = CKP_ML_DSA_44;
+			} else {
+				util_fatal("Invalid ML-DSA key type '%s'", type);
+			}
+
+			if (!opt_mechanism_used)
+				if (!find_mechanism(slot, CKF_GENERATE_KEY_PAIR, mtypes, mtypes_num, &opt_mechanism))
+					util_fatal("Generate RSA mechanism not supported");
+		}
 		else {
 			util_fatal("Unknown key pair type %s", type);
 		}
@@ -4450,11 +4481,10 @@ parse_ec_pkey(EVP_PKEY *pkey, int private, struct generalkey_info *ec)
 }
 
 static int
-parse_ml_dsa_pkey(EVP_PKEY *pkey, int private, struct generalkey_info *ml_dsa)
+parse_ml_dsa_pkey(EVP_PKEY *pkey, int private, struct pqckey_info *ml_dsa)
 {
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-	ml_dsa->param_oid.len = i2d_KeyParams(pkey, &ml_dsa->param_oid.value);
-	if (ml_dsa->param_oid.len <= 0) {
+#if OPENSSL_VERSION_NUMBER >= 0x30500000L
+	if ((ml_dsa->type = EVP_PKEY_get_id(pkey)) == -1) {
 		return -1;
 	}
 	if (private) {
@@ -4468,6 +4498,17 @@ parse_ml_dsa_pkey(EVP_PKEY *pkey, int private, struct generalkey_info *ml_dsa)
 			return -1;
 		}
 		if (EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PRIV_KEY, ml_dsa->private.value, priv_len, NULL) != 1) {
+			OPENSSL_free(ml_dsa->private.value);
+			return -1;
+		}
+		ml_dsa->seed.len = 32;
+		if (!(ml_dsa->seed.value = OPENSSL_malloc(ml_dsa->seed.len))) {
+			OPENSSL_free(ml_dsa->private.value);
+			return -1;
+		}
+		if (EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_ML_DSA_SEED, ml_dsa->private.value, priv_len, NULL) != 1) {
+			OPENSSL_free(ml_dsa->private.value);
+			OPENSSL_free(ml_dsa->seed.value);
 			return -1;
 		}
 	} else {
@@ -4481,6 +4522,7 @@ parse_ml_dsa_pkey(EVP_PKEY *pkey, int private, struct generalkey_info *ml_dsa)
 			return -1;
 		}
 		if (EVP_PKEY_get_octet_string_param(pkey, OSSL_PKEY_PARAM_PUB_KEY, ml_dsa->public.value, pub_len, NULL) != 1) {
+			OPENSSL_free(ml_dsa->public);
 			return -1;
 		}
 	}
@@ -4579,6 +4621,13 @@ evp_pkey2ck_key_type(EVP_PKEY *pkey, CK_KEY_TYPE *type, int *pk_type, struct ec_
 #if defined(EVP_PKEY_GOST28147)
 	if (*pk_type == EVP_PKEY_GOST28147) {
 		*type = CKK_GOST28147;
+		return CKR_OK;
+	}
+#endif
+
+#if defined(EVP_PKEY_ML_DSA_44) && defined(EVP_PKEY_ML_DSA_65) && defined(EVP_PKEY_ML_DSA_87)
+	if (*pk_type == EVP_PKEY_ML_DSA_44 || *pk_type == EVP_PKEY_ML_DSA_65 || *pk_type == EVP_PKEY_ML_DSA_87) {
+		*type = CKK_ML_DSA;
 		return CKR_OK;
 	}
 #endif
@@ -4695,6 +4744,7 @@ static CK_RV write_object(CK_SESSION_HANDLE session)
 	struct x509cert_info cert;
 	struct rsakey_info rsa;
 	struct generalkey_info general_key;
+	struct pqckey_info pqc_key;
 	EVP_PKEY *evp_key = NULL;
 	int pk_type = -1;
 	struct ec_curve_info *ec_curve_info = NULL;
@@ -4803,12 +4853,11 @@ static CK_RV write_object(CK_SESSION_HANDLE session)
 		} else if (type == CKK_EC_EDWARDS || type == CKK_EC_MONTGOMERY) {
 			rv = parse_ed_mont_pkey(evp_key, type, pk_type, ec_curve_info, is_private, &general_key);
 		} else if (type == CKK_ML_DSA) {
-			rv = parse_ml_dsa_pkey(evp_key, is_private, &general_key);
+			rv = parse_ml_dsa_pkey(evp_key, is_private, &pqc_key);
 		}
 #endif
 		else
 			util_fatal("Unsupported key type: 0x%X", pk_type);
-		/* PQC: Add*/
 
 		if (rv)
 			util_fatal("Cannot parse key");
@@ -4934,16 +4983,13 @@ static CK_RV write_object(CK_SESSION_HANDLE session)
 			n_privkey_attr++;
 			FILL_ATTR(privkey_templ[n_privkey_attr], CKA_COEFFICIENT, rsa.coefficient, rsa.coefficient_len);
 			n_privkey_attr++;
-		}
-
-		else if ((type == CKK_EC) || (type == CKK_EC_EDWARDS) || (type == CKK_EC_MONTGOMERY)) {
+		} else if ((type == CKK_EC) || (type == CKK_EC_EDWARDS) || (type == CKK_EC_MONTGOMERY)) {
 			FILL_ATTR(privkey_templ[n_privkey_attr], CKA_KEY_TYPE, &type, sizeof(type));
 			n_privkey_attr++;
 			FILL_ATTR(privkey_templ[n_privkey_attr], CKA_EC_PARAMS, general_key.param_oid.value, general_key.param_oid.len);
 			n_privkey_attr++;
 			FILL_ATTR(privkey_templ[n_privkey_attr], CKA_VALUE, general_key.private.value, general_key.private.len);
 			n_privkey_attr++;
-
 		} else if (type == CKK_GOSTR3410) {
 			FILL_ATTR(privkey_templ[n_privkey_attr], CKA_KEY_TYPE, &type, sizeof(type));
 			n_privkey_attr++;
@@ -4954,6 +5000,13 @@ static CK_RV write_object(CK_SESSION_HANDLE session)
 			rv = sc_mem_reverse(privkey_templ[n_privkey_attr].pValue, privkey_templ[n_privkey_attr].ulValueLen);
 			if (rv)
 				return rv;
+			n_privkey_attr++;
+		} else if (type == CKK_ML_DSA) {
+			FILL_ATTR(privkey_templ[n_privkey_attr], CKA_PARAMETER_SET, &pqc_key.type, sizeof(pqc_key.type));
+			n_privkey_attr++;
+			FILL_ATTR(privkey_templ[n_privkey_attr], CKA_VALUE, &pqc_key.private.value, pqc_key.private.len);
+			n_privkey_attr++;
+			FILL_ATTR(privkey_templ[n_privkey_attr], CKA_SEED, &pqc_key.seed.value, pqc_key.seed.len);
 			n_privkey_attr++;
 		} else {
 			util_fatal("Unsupported CK_KEY_TYPE, cannot write private key");
@@ -5020,6 +5073,11 @@ static CK_RV write_object(CK_SESSION_HANDLE session)
 				rsa.modulus, rsa.modulus_len);
 			n_pubkey_attr++;
 			FILL_ATTR(pubkey_templ[n_pubkey_attr], CKA_PUBLIC_EXPONENT, rsa.public_exponent, rsa.public_exponent_len);
+			n_pubkey_attr++;
+		} else if (type == CKK_ML_DSA) {
+			FILL_ATTR(pubkey_templ[n_pubkey_attr], CKA_PARAMETER_SET, &pqc_key.type, sizeof(pqc_key.type));
+			n_pubkey_attr++;
+			FILL_ATTR(pubkey_templ[n_pubkey_attr], CKA_VALUE, &pqc_key.public.value, pqc_key.public.len);
 			n_pubkey_attr++;
 		}
 #if !defined(OPENSSL_NO_EC)
